@@ -1,86 +1,108 @@
-# Current Status
+# Current Status — TXPPS TX-80
 
-**Repository:** `C:\Users\TXPPS\Documents\APP Builds\TXPPS-TX27-FM-Synth`
-**Baseline:** `main` at `821640d3a0581b87fced006a1d74228d87cda7ab`
+**Repository:** TXPPS-TX-80 (branch `claude/tx80-synth-completion-nkt36a`)
+**Baseline:** TXPPS TX27 Replit Refinement (Gate 2 state), imported as the
+first commit and preserved intact.
 
-## Gate 2
+## Current-state audit (performed before implementation, 2026-07-18)
 
-- **Verified:** product-neutral `SynthEngine<State>` boundary
-- **Verified:** TX27 adapter retains FM engine behind the boundary
-- **Verified:** stable TX27 parameter registry; settings remain separate
-- **Verified:** `glideMode` survives sanitize, export/import, and current storage reload
-- **Verified:** silent non-FM compile proof
-- **Verified:** 21 Vitest simulations/tests, TypeScript, and targeted semantic lint
-- **Verified:** production build and generated service worker (cache `32f37a3ad261`)
-- **Verified:** local server launch and SSR shell HTTP smoke
+The delivered project ZIP contained the **TXPPS TX27 FM synthesizer** at its
+verified Gate 2 state. Audit findings against the task's claims:
 
-## Gate 2 browser/device validation (2026-07-17)
+- **No TX-80 code existed.** There were no Layer I/II panels, no ribbon, no
+  dual-layer parameter registry, no Zustand store, and no TX-80 route,
+  documentation, or assets anywhere in the ZIP. The "approved Milestone 1
+  TX-80 shell" could not be verified because it was not present.
+- What DID exist and verify cleanly (bun install / `tsc --noEmit` /
+  21 vitest tests / production build + SW precache injection, all green on
+  import):
+  - the product-neutral `SynthEngine<State>` boundary (`src/lib/synth/`)
+  - the `SynthRuntime` gesture-gated activation coordinator
+  - the TX27 product (engine, registry, presets, patch library, UI)
+  - genuinely multitouch `Keyboard`, pointer-captured `PerfStrip`, `Knob`,
+    `TxSelect`, themed dialogs with focus traps
+  - the TXPPS design system (`src/styles.css`), PWA manifest + versioned
+    service worker with production guard, Playwright e2e harness
+- State is React `useState` + refs (the TX27 pattern) — **not Zustand**. The
+  existing pattern was kept; introducing Zustand would have been a rewrite
+  for zero functional gain.
+- Persistence is **localStorage** (the proven TX27 storage layer pattern),
+  not IndexedDB/idb. TX-80 uses the same discipline (versioned payloads,
+  graceful failure, factory presets never depend on storage). Deviation from
+  the "IndexedDB via idb" expectation is deliberate and documented.
 
-Validated against the **real** production build (`.output`) served by
-`wrangler dev`, using a minimal Playwright smoke layer (`tests/e2e/`). 40
-browser/emulation checks pass alongside the 21 unit tests.
+**Decision:** build TX-80 as a new product on the existing foundation, in the
+same repository, preserving all TX27 code. The TX27 instrument remains fully
+working at `/tx27`; TX-80 is the root route `/`.
 
-- **Verified (browser):** cold launch, gesture-driven audio start, first-note
-  preservation, note on/off, rapid-activation dedup, panic, power-off→reconnect,
-  background/visibility note release — Chromium + Microsoft Edge.
-- **Verified (browser):** offline/PWA — SW registers/controls, precache
-  populated, offline reload usable, no remote-CDN requests, content-hash cache
-  version + build id, old-cache cleanup present.
-- **Verified (browser):** `glideMode` UI→localStorage persistence across reload;
-  settings persistence separate from patch; factory preset navigation.
-- **Verified (emulation):** responsive layout on iPhone (WebKit), Pixel 7 and
-  Galaxy Tab S4 (Chromium), portrait + landscape — no horizontal scroll,
-  controls within viewport, SETUP + keyboard usable.
-- **Verified (physical):** Apple iPhone 16 Pro Max (Safari + installed Home
-  Screen PWA) and Samsung Galaxy Tab A11 (Chrome + installed Android PWA).
-- **Physical PASS:** browser and installed-PWA launch, audio startup/first
-  note, touch, portrait/landscape responsive layout, orientation,
-  background/return recovery, preset interaction, and panic/audio stop.
-- **No critical physical-device failures observed.**
-- **Non-blocking NOT TESTED:** offline/airplane relaunch, forced audio failure
-  retry, screen-lock recovery, persistence, active-note orientation/touch
-  cancellation, multitouch specifics, and service-worker update behavior.
-- **TO RECORD:** exact iOS/Safari and Android/Chrome versions.
-- **Test target:** reachable HTTPS production deployment
-  `https://txpps-tx27.toppsmusicproductions.workers.dev`; the deployed build ID
-  must be recorded from STARTUP DIAGNOSTICS before testing.
+## What is implemented and verified (TX-80)
 
-**Gate 2 validation decision: PASS.**
-**Physical addendum: PHYSICAL DEVICE VALIDATION PASS.**
-**Gate 2 is complete; Gate 3 is READY but NOT STARTED and may begin only when
-explicitly authorized.**
-See `docs/web-synth-foundation-audit/GATE_2_DEVICE_SMOKE_MATRIX.md`.
+All verification below is **automated evidence** (unit + real-browser e2e
+against the production build served by `wrangler dev`). Perceptual sound
+quality is NOT claimed — see MANUAL_QA.md.
 
-## Pre-existing work preserved
+- **Verified (unit, 32 tests):** TX-80 parameter registry (79 parameters:
+  unique stable IDs, defaults resolve against INIT, layer independence,
+  clamping/coercion, serialization round-trip), patch normalization,
+  factory-preset round-trip + stable IDs, plus all 21 pre-existing TX27
+  foundation tests.
+- **Verified (browser, 48 e2e tests, Chromium desktop + Pixel 7 + Galaxy
+  Tab S4 portrait/landscape emulation):**
+  - cold launch arms without error; gesture-gated audio start; first-note
+    preservation; rapid-activation dedup; power off → reconnect;
+    background/visibility note release; panic
+  - engine identity `tx80.dual2`, running AudioContext, **real signal at the
+    master analyser** from a held note and clean decay after release
+  - chord → one coordinated voice per note; repeated same-note presses stack
+    and release one-for-one (LIFO); voice stealing caps at the configured
+    polyphony; solo mode holds one voice through legato overlap and returns
+    to the held note
+  - portamento and glissando modes play and land cleanly; LFO destination
+    cycling (FILTER/AMP/PAN/BALANCE/PW/PITCH) rewires without errors;
+    Layer II enable/disable is independent of Layer I
+  - preset switching while holding a note releases cleanly; ribbon drag +
+    release leaves no stale state
+  - presets: parameter → SAVE AS → localStorage payload → reload survival;
+    saved preset restored as the active patch after reload; delete; factory
+    navigation; settings stored separately from patches
+  - PWA: service worker registers/controls, precache populated, offline
+    reload usable, same-origin-only requests, content-hash cache version +
+    build id injected, old-cache cleanup present
+  - responsive: no horizontal page scroll, power/panic/preset/ribbon/keyboard
+    within viewport, SETUP dialog contained — on all four emulated
+    phone/tablet orientations
+- **Verified (build tooling):** `tsc --noEmit` clean; ESLint clean on all new
+  TX-80 files; production build + SW precache injection green.
 
-- Modified `src/routes/index.tsx` cold-launch refinements
-- Modified/generated `src/routeTree.gen.ts` line-ending state
-- Deleted `public/favicon.ico`
-- Untracked Gate 1 audit documents under `docs/web-synth-foundation-audit/`
-- Gate 2 boundary files (synth contracts/runtime, tx27 adapter/parameters, tests)
+## Environment-limited (NOT verified here)
 
-## Validation infrastructure added (no production behavior change)
+- WebKit/iPhone emulation projects and the Edge channel project require
+  browsers not installed in this container (only Chromium is available).
+  The specs remain in the repo and run where those browsers exist.
+- Physical-device validation (iOS Safari, installed PWA, screen-lock
+  recovery, real multitouch) — see MANUAL_QA.md.
+- **Anything audible.** This environment cannot hear audio. Graph
+  construction, analyser activity, voice lifecycle and parameter paths are
+  verified; sound quality, musical balance of factory presets, portamento/
+  glissando feel, and effect character require human listening.
 
-- `playwright.config.ts`, `tests/e2e/*.e2e.ts` — browser smoke layer
-- `scripts/launch-local.mjs` + `start:local` / `serve:prod` / `test:e2e` scripts
-- `.gitignore` entries for Playwright artifacts
+## Known unresolved / accepted limitations
 
-## Known unresolved product defects (Gate 2 observation)
+- Waveform and envelope edits apply to NEW notes only (continuous params —
+  tuning, levels, filter, pan, PW — do retarget sounding voices). Standard
+  synth behavior, documented in ARCHITECTURE.md.
+- Pulse wave uses a comparator-shaped sawtooth (2× oversampled); some
+  aliasing at extreme pitches is expected at this stage.
+- Heavy balance modulation lifts the quieter layer's floor (anti-phase-flip
+  guard) — documented trade-off.
+- The pre-existing global lint noise in legacy TX27 files (CRLF formatting)
+  is unchanged, per the repo's own instruction not to mass-format.
+- `randomizePatch` exists for TX27 only; TX-80 has INIT instead of RND.
+- JSON preset import/export is not implemented for TX-80 (optional per the
+  brief; the TX27 library keeps its own).
 
-Not fixed in this pass (pre-existing, not caused by Gate 2, not blocking
-validation). Headless audio has no acoustic/spectral output, so sound-design
-defects cannot be observed automatically:
+## TX27 (unchanged behavior, new path)
 
-- Active FM voices not receiving all operator/algorithm edits — **Not tested**
-  (requires audio-perception / spectral analysis)
-- Mono retune changing effective FM index — **Not tested** (requires spectral
-  analysis)
-- Vintage drift affecting amplitude rather than pitch — **Not tested**
-  (requires spectral analysis)
-- Start-during-stop overlap dropping notes — **Not reproduced** in browser
-  smoke (power-off→reconnect and rapid-activation dedup pass); a targeted
-  timing test is still needed for the specific overlap race
-- Global lint remains noisy from pre-existing CRLF formatting — unchanged
-
-No Gate 2-caused regression was found, so no regression test was required this
-pass. No Gate 3 extraction and no P5IVE implementation have begun.
+The complete TX27 instrument moved from `/` to `/tx27` (route path + title
+only; no functional changes). Its storage keys are untouched, so existing
+user patches keep working.

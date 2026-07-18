@@ -1,22 +1,24 @@
 import { test, expect, type Page } from "@playwright/test";
 
 /**
- * Preset / state validation through the real UI + storage path.
+ * TX-80 preset / state validation through the real UI + storage path.
  *
- * glideMode is the Gate 2 R1 regression. Unit tests cover serialize /
- * import / storage-reload; this exercises the genuine UI → localStorage
- * round trip in a real browser to confirm the shipped path persists it.
+ * Exercises the genuine UI → localStorage round trip in a real browser:
+ * patch parameter → SAVE AS → tx80-user-presets payload → reload survival,
+ * plus settings separation and factory preset navigation.
  */
 
-const USER_LIBRARY_KEY = "tx27.userLibrary.v2";
-const SETTINGS_KEY = "tx27-settings";
-const glideLegato = (page: Page) => page.getByRole("button", { name: "LEGATO" });
+const USER_PRESETS_KEY = "tx80-user-presets";
+const SETTINGS_KEY = "tx80-settings";
 
-async function readUserLibrary(page: Page) {
+const travelGliss = (page: Page) =>
+  page.getByRole("button", { name: "GLISS", exact: true }).first();
+
+async function readUserPresets(page: Page) {
   return page.evaluate((key) => {
     const raw = localStorage.getItem(key);
     return raw ? JSON.parse(raw) : null;
-  }, USER_LIBRARY_KEY);
+  }, USER_PRESETS_KEY);
 }
 
 test.beforeEach(async ({ page }) => {
@@ -24,32 +26,40 @@ test.beforeEach(async ({ page }) => {
   await expect(page.getByRole("button", { name: /Power on|Power off/ })).toBeVisible();
 });
 
-test("glideMode set in UI persists to the user library through Save As", async ({ page }) => {
-  await expect(glideLegato(page)).toBeVisible();
-  await glideLegato(page).click();
-  await expect(glideLegato(page)).toHaveAttribute("aria-pressed", "true");
+test("pitch travel mode set in UI persists through Save As and reload", async ({ page }) => {
+  await expect(travelGliss(page)).toBeVisible();
+  await travelGliss(page).click();
+  await expect(travelGliss(page)).toHaveAttribute("aria-pressed", "true");
 
   await page.getByRole("button", { name: "SAVE AS" }).click();
-  const nameField = page.getByLabel("Preset name");
+  const nameField = page.getByLabel("PRESET NAME");
   await expect(nameField).toBeVisible();
-  await nameField.fill("GLIDE LEGATO TEST");
+  await nameField.fill("GLISS TRAVEL TEST");
   await page.getByRole("button", { name: "SAVE", exact: true }).click();
 
-  const lib = await readUserLibrary(page);
+  const lib = await readUserPresets(page);
   expect(lib).not.toBeNull();
-  const entry = lib.entries.find(
-    (e: { meta: { name: string } }) => e.meta.name === "GLIDE LEGATO TEST",
-  );
+  const entry = lib.entries.find((e: { name: string }) => e.name === "GLISS TRAVEL TEST");
   expect(entry, "saved entry present").toBeTruthy();
-  expect(entry.patch.glideMode).toBe("mono");
+  expect(entry.patch.pitchTravel.mode).toBe("gliss");
 
   // Survives a full reload (storage-backed).
   await page.reload();
-  const lib2 = await readUserLibrary(page);
-  const entry2 = lib2.entries.find(
-    (e: { meta: { name: string } }) => e.meta.name === "GLIDE LEGATO TEST",
-  );
-  expect(entry2.patch.glideMode).toBe("mono");
+  const lib2 = await readUserPresets(page);
+  const entry2 = lib2.entries.find((e: { name: string }) => e.name === "GLISS TRAVEL TEST");
+  expect(entry2.patch.pitchTravel.mode).toBe("gliss");
+});
+
+test("saved user preset is restored as the active patch after reload", async ({ page }) => {
+  await page.getByRole("button", { name: "SAVE AS" }).click();
+  const nameField = page.getByLabel("PRESET NAME");
+  await nameField.fill("RELOAD RESTORE TEST");
+  await page.getByRole("button", { name: "SAVE", exact: true }).click();
+  await expect(page.getByTestId("tx80-patch-name")).toContainText("RELOAD RESTORE TEST");
+  await page.reload();
+  await expect(page.getByTestId("tx80-patch-name")).toContainText("RELOAD RESTORE TEST", {
+    timeout: 10_000,
+  });
 });
 
 test("settings (bend range) persist across reload, separate from patch state", async ({ page }) => {
@@ -62,25 +72,29 @@ test("settings (bend range) persist across reload, separate from patch state", a
     return raw ? JSON.parse(raw) : null;
   }, SETTINGS_KEY);
   expect(stored.bendRangeSemitones).toBe(7);
-  // Settings live outside the patch/library payload.
-  const lib = await readUserLibrary(page);
+  const lib = await readUserPresets(page);
   expect(lib === null || Array.isArray(lib.entries)).toBe(true);
 });
 
 test("factory presets load and change the active patch (Next preset)", async ({ page }) => {
-  const center = page.getByRole("button", { name: "Open preset quick access" });
-  const nameOf = async () =>
-    (await center.locator("span.font-bold").first().textContent())?.trim() ?? "";
-
-  const before = await nameOf();
+  const lcd = page.getByTestId("tx80-patch-name");
+  const before = (await lcd.textContent())?.trim() ?? "";
   await page.getByRole("button", { name: "Next preset" }).click();
-  await expect.poll(async () => nameOf(), { timeout: 5000 }).not.toBe(before);
+  await expect
+    .poll(async () => ((await lcd.textContent()) ?? "").trim(), { timeout: 5000 })
+    .not.toBe(before);
 });
 
-test("quick access opens from the LCD and can be dismissed", async ({ page }) => {
-  await page.getByRole("button", { name: "Open preset quick access" }).click();
-  const qa = page.getByRole("dialog", { name: "Preset quick access" });
-  await expect(qa).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(qa).toHaveCount(0);
+test("preset delete removes the entry and keeps the instrument playable", async ({ page }) => {
+  await page.getByRole("button", { name: "SAVE AS" }).click();
+  await page.getByLabel("PRESET NAME").fill("DELETE ME");
+  await page.getByRole("button", { name: "SAVE", exact: true }).click();
+  await expect(page.getByTestId("tx80-patch-name")).toContainText("DELETE ME");
+
+  await page.getByRole("button", { name: "DEL", exact: true }).click();
+  await page.getByRole("button", { name: "DELETE", exact: true }).click();
+  const lib = await readUserPresets(page);
+  const entry = (lib?.entries ?? []).find((e: { name: string }) => e.name === "DELETE ME");
+  expect(entry).toBeFalsy();
+  await expect(page.getByRole("button", { name: /Power on|Power off/ })).toBeVisible();
 });

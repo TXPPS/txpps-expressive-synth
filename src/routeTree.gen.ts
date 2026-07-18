@@ -9,8 +9,14 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as Tx27RouteImport } from './routes/tx27'
 import { Route as IndexRouteImport } from './routes/index'
 
+const Tx27Route = Tx27RouteImport.update({
+  id: '/tx27',
+  path: '/tx27',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -19,28 +25,39 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/tx27': typeof Tx27Route
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/tx27': typeof Tx27Route
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/tx27': typeof Tx27Route
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/tx27'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/tx27'
+  id: '__root__' | '/' | '/tx27'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  Tx27Route: typeof Tx27Route
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/tx27': {
+      id: '/tx27'
+      path: '/tx27'
+      fullPath: '/tx27'
+      preLoaderRoute: typeof Tx27RouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -53,6 +70,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  Tx27Route: Tx27Route,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

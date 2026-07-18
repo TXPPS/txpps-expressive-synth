@@ -38,8 +38,14 @@ test("core performance + status controls stay within the viewport", async ({ pag
   await expect(powerBtn(page)).toBeVisible();
   await expectInViewport(page, powerBtn(page));
   await expectInViewport(page, page.getByRole("button", { name: "PANIC" }));
-  // Preset LCD status surface reachable.
-  await expectInViewport(page, page.getByRole("button", { name: "Open preset quick access" }));
+  // Preset LCD navigation reachable.
+  await expectInViewport(page, page.getByRole("button", { name: "Next preset" }));
+});
+
+test("ribbon controller is present and within the viewport", async ({ page }) => {
+  const ribbon = page.getByTestId("tx80-ribbon");
+  await expect(ribbon).toBeVisible();
+  await expectInViewport(page, ribbon);
 });
 
 test("SETUP dialog opens and closes without escaping the viewport", async ({ page }) => {

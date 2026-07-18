@@ -1,163 +1,148 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Knob } from "@/components/tx27/Knob";
 import { Keyboard } from "@/components/tx27/Keyboard";
 import { PerfStrip } from "@/components/tx27/PerfStrip";
-import { AlgorithmView } from "@/components/tx27/AlgorithmView";
-import { ALGORITHMS } from "@/lib/audio/algorithms";
-import { INIT_PATCH, type Patch } from "@/lib/audio/types";
-import type { ParameterValue, SynthEngine, SynthRuntimeStatus } from "@/lib/synth/contracts";
-import { SynthRuntime } from "@/lib/synth/runtime";
-import { setTx27Parameter, setTx27Parameters } from "@/lib/tx27/parameters";
-import { TX27_PRODUCT } from "@/lib/tx27/productAdapter";
-import { clonePatch, randomizePatch } from "@/lib/presets";
-import { PatchLibrary } from "@/components/tx27/patch-library/PatchLibrary";
-import { PatchSaveDialog } from "@/components/tx27/patch-library/PatchSaveDialog";
-import { PatchConfirmDialog } from "@/components/tx27/patch-library/PatchConfirmDialog";
-import { usePatchLibrary } from "@/components/tx27/patch-library/usePatchLibrary";
-import { PresetLCD } from "@/components/tx27/PresetLCD";
 import { TxSelect } from "@/components/tx27/TxSelect";
-import { PresetQuickAccess } from "@/components/tx27/PresetQuickAccess";
-import { SettingsDialog } from "@/components/tx27/SettingsDialog";
+import { PatchConfirmDialog } from "@/components/tx27/patch-library/PatchConfirmDialog";
+import { LayerPanel } from "@/components/tx80/LayerPanel";
+import { ParamKnob } from "@/components/tx80/ParamKnob";
+import { Ribbon } from "@/components/tx80/Ribbon";
+import { Tx80SaveDialog, Tx80SetupDialog } from "@/components/tx80/Tx80Dialogs";
+import { useTx80Presets } from "@/components/tx80/useTx80Presets";
+import type { ParameterValue, SynthRuntimeStatus } from "@/lib/synth/contracts";
+import { SynthRuntime } from "@/lib/synth/runtime";
+import { Tx80Midi, type Tx80MidiStatus } from "@/lib/tx80/midi";
+import { setTx80Parameter, setTx80Parameters } from "@/lib/tx80/parameters";
+import { TX80_PRODUCT, TX80ProductEngine } from "@/lib/tx80/productAdapter";
 import {
-  DEFAULT_SETTINGS,
-  loadSettings,
-  saveSettings,
-  type Tx27Settings,
-} from "@/lib/settings";
+  loadTx80Settings,
+  loadTx80UiMode,
+  saveTx80Settings,
+  saveTx80UiMode,
+  TX80_DEFAULT_SETTINGS,
+  type Tx80Settings,
+  type Tx80UiMode,
+} from "@/lib/tx80/storage";
 import {
   initStartupDiagnostics,
   recordStartupError,
   recordStartupPhase,
 } from "@/lib/startup-diagnostics";
+import { cloneTx80Patch, TX80_INIT_PATCH, type Tx80Patch } from "@/lib/tx80/types";
 
-// ── Audio initialization state machine ──────────────────────────────────────
-// idle       — ARMED: app fully loaded and playable-looking, audio not yet
-//              unlocked. This is the NORMAL launch state (mobile autoplay
-//              policy forbids silent unlock) — never presented as an error,
-//              no timeout runs, nothing starts until a genuine user gesture.
+// ── Audio initialization state machine (same discipline as TX27) ────────────
+// idle       — ARMED: app fully loaded, audio not yet unlocked (normal launch
+//              state under mobile autoplay policy — never an error).
 // starting   — a user gesture initiated engine creation/resume (bounded)
 // recovering — rebuilding after a dead engine (closed context) was disposed
 // ready      — context genuinely running
-// suspended  — context suspended/interrupted (power off, background, lock);
-//              the next gesture resumes it
-// failed     — a GESTURE-STARTED bounded attempt failed; RETRY UI is shown,
-//              the next gesture retries
+// suspended  — context suspended/interrupted; the next gesture resumes it
+// failed     — a gesture-started bounded attempt failed; RETRY UI is shown
 type AudioInitState = "idle" | "starting" | "recovering" | "ready" | "suspended" | "failed";
 
-/** Which user interaction initiated an audio start attempt (diagnostics). */
-type StartGestureSource = "key" | "power" | "preset" | "play_mode" | "unknown";
-
-/** Bounded overall audio init. engine.start() bounds each AudioContext await
- *  itself; this outer limit is defense for anything else so a later gesture
- *  can always retry (the in-flight promise is cleared on settle). */
 const AUDIO_INIT_TIMEOUT_MS = 8000;
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "TXPPS TX27 — Mobile FM Synthesizer" },
+      { title: "TXPPS TX-80 — Dual-Layer Performance Synthesizer" },
       {
         name: "description",
         content:
-          "Play TXPPS TX27 in the browser: four-operator FM, six routing algorithms, Vintage Circuit with AGE macro, chorus, delay, and three reverbs.",
+          "Play TXPPS TX-80 in the browser: two independent synthesis layers, ribbon controller, portamento and true glissando, dual LFOs, chorus, delay and reverb.",
       },
     ],
   }),
-  component: TX27App,
+  component: TX80App,
 });
 
 // Computer keyboard mapping (2 octaves starting from C)
 const KB_MAP: Record<string, number> = {
-  a: 0, w: 1, s: 2, e: 3, d: 4, f: 5, t: 6, g: 7, y: 8, h: 9, u: 10, j: 11,
-  k: 12, o: 13, l: 14, p: 15, ";": 16,
+  a: 0,
+  w: 1,
+  s: 2,
+  e: 3,
+  d: 4,
+  f: 5,
+  t: 6,
+  g: 7,
+  y: 8,
+  h: 9,
+  u: 10,
+  j: 11,
+  k: 12,
+  o: 13,
+  l: 14,
+  p: 15,
+  ";": 16,
 };
 
-type Tab = "ops" | "algo" | "voice" | "mix" | "vintage" | "fx";
+type Tab = "l1" | "l2" | "perf" | "mod" | "fx" | "out";
 
-// Short labels keep six tabs on one phone-width row.
 const TAB_LABELS: Record<Tab, string> = {
-  ops: "OPS",
-  algo: "ALGO",
-  voice: "VOICE",
-  mix: "MIX",
-  vintage: "VINT",
+  l1: "L·I",
+  l2: "L·II",
+  perf: "PERF",
+  mod: "MOD",
   fx: "FX",
+  out: "OUT",
 };
 
-// Global bend-range choices (settings.ts). Full label for panels, compact for
-// the PLAY-mode control bar.
-const BEND_OPTIONS = Array.from({ length: 12 }, (_, i) => ({
-  value: i + 1,
-  label: `±${i + 1} ST`,
-}));
-const BEND_OPTIONS_COMPACT = Array.from({ length: 12 }, (_, i) => ({
-  value: i + 1,
-  label: `±${i + 1}`,
-}));
-
-// ── UI modes ────────────────────────────────────────────────────────────────
-// FULL = complete instrument, EDIT = synthesis editing without the keyboard,
-// PLAY = dedicated performance screen. Not part of Patch — persisted separately.
-type Tx27UiMode = "full" | "editor" | "performance";
-
-const UI_MODE_KEY = "tx27-ui-mode";
-const UI_MODE_LABELS: Record<Tx27UiMode, string> = {
+const UI_MODE_LABELS: Record<Tx80UiMode, string> = {
   full: "FULL",
   editor: "EDIT",
   performance: "PLAY",
 };
 
-function loadUiMode(): Tx27UiMode {
-  try {
-    const v = localStorage.getItem(UI_MODE_KEY);
-    if (v === "full" || v === "editor" || v === "performance") return v;
-  } catch {
-    /* noop */
-  }
-  return "full";
+const BEND_OPTIONS_COMPACT = Array.from({ length: 12 }, (_, i) => ({
+  value: i + 1,
+  label: `±${i + 1}`,
+}));
+
+const RIBBON_RANGE_OPTIONS = [2, 5, 7, 12, 24].map((v) => ({ value: v, label: `±${v} ST` }));
+
+const LFO_DEST_OPTIONS = [
+  { value: "off", label: "OFF" },
+  { value: "pitch", label: "PITCH" },
+  { value: "filter", label: "FILTER" },
+  { value: "amp", label: "AMP" },
+  { value: "pw", label: "PW" },
+  { value: "pan", label: "PAN" },
+  { value: "balance", label: "BALANCE" },
+] as const;
+
+function pct(v: number): string {
+  return (v * 100).toFixed(0);
 }
 
-function TX27App() {
+function TX80App() {
   const [powered, setPowered] = useState(false);
-  const [patch, setPatchState] = useState<Patch>(() =>
-    clonePatch(TX27_PRODUCT.factoryPresets[0]),
+  const [patch, setPatchState] = useState<Tx80Patch>(() =>
+    cloneTx80Patch(TX80_PRODUCT.factoryPresets[0].patch),
   );
-  const [selectedOp, setSelectedOp] = useState(0);
   const [octave, setOctave] = useState(4);
   const [activeNotes, setActiveNotes] = useState<Set<number>>(new Set());
   const [sustain, setSustain] = useState(false);
-  const [pitchBend, setPitchBend] = useState(0); // -1..1
+  const [pitchBend, setPitchBend] = useState(0);
   const [modWheel, setModWheel] = useState(0);
   const [meter, setMeter] = useState(0);
-  const [tab, setTab] = useState<Tab>("ops");
-  // Always start as "full" so server and client render identically (avoids a
-  // hydration mismatch); the persisted mode is applied right after mount.
-  const [uiMode, setUiModeState] = useState<Tx27UiMode>("full");
+  const [tab, setTab] = useState<Tab>("l1");
+  // Start as "full" so server and client render identically; the persisted
+  // mode is applied right after mount (avoids hydration mismatch).
+  const [uiMode, setUiModeState] = useState<Tx80UiMode>("full");
   useEffect(() => {
-    const saved = loadUiMode();
+    const saved = loadTx80UiMode();
     if (saved !== "full") setUiModeState(saved);
   }, []);
-  // Refs mirroring state, so switchUiMode can run side effects outside a
-  // state-updater function (updaters must stay pure under Strict Mode).
   const uiModeRef = useRef(uiMode);
   uiModeRef.current = uiMode;
   const activeNotesRef = useRef(activeNotes);
   activeNotesRef.current = activeNotes;
-  // True while the patch library overlay or one of its dialogs is open — the
-  // computer-keyboard piano is suspended so typing never plays notes. A ref
-  // (not state) so the global key handler needs no re-subscription.
   const uiBlockedRef = useRef(false);
-  // Central LCD button — declared up here because the piano key handler below
-  // must exempt it from Space-sustain, so native Space activation can open
-  // the preset quick-access panel (keyboard-accessibility requirement).
-  const lcdBtnRef = useRef<HTMLButtonElement | null>(null);
 
-  // ── Workspace layout signals ─────────────────────────────────────────────
-  // Both default to false so server and client render identically; the real
-  // values apply right after mount (same pattern as the persisted UI mode).
+  // ── Workspace layout signals (SSR-safe defaults) ────────────────────────
   const [isPortrait, setIsPortrait] = useState(false);
-  const [isNarrow, setIsNarrow] = useState(false); // phone-class width
+  const [isNarrow, setIsNarrow] = useState(false);
   useEffect(() => {
     const pq = window.matchMedia("(orientation: portrait)");
     const nq = window.matchMedia("(max-width: 767px)");
@@ -174,54 +159,36 @@ function TX27App() {
     };
   }, []);
 
-  const engineRef = useRef<SynthEngine<Patch> | null>(null);
-  const runtimeRef = useRef<SynthRuntime<Patch> | null>(null);
+  const engineRef = useRef<TX80ProductEngine | null>(null);
+  const runtimeRef = useRef<SynthRuntime<Tx80Patch> | null>(null);
   const runtimeUnsubscribeRef = useRef<(() => void) | null>(null);
 
-  // ensureAudioReady is defined further down (it needs powerBusy state);
-  // earlier handlers reach it through this ref.
-  const ensureAudioReadyRef = useRef<((source?: StartGestureSource) => Promise<boolean>) | null>(
-    null,
-  );
-
-  // ── Global performance settings (SETUP) ─────────────────────────────────
-  // Bend range + confirm-preset-change live OUTSIDE the patch: they are
-  // instrument-level preferences persisted in localStorage. Rendered with
-  // defaults first (SSR-safe), real values applied right after mount.
-  const [settings, setSettings] = useState<Tx27Settings>(DEFAULT_SETTINGS);
+  // ── Global performance settings ─────────────────────────────────────────
+  const [settings, setSettings] = useState<Tx80Settings>(TX80_DEFAULT_SETTINGS);
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
   const [settingsOpen, setSettingsOpen] = useState(false);
   const setupBtnRef = useRef<HTMLButtonElement | null>(null);
   useEffect(() => {
-    setSettings(loadSettings());
+    setSettings(loadTx80Settings());
   }, []);
-  // Persist + push the bend range into the engine whenever settings change.
-  // The first run (pre-load defaults) is skipped so stored settings are never
-  // clobbered by the initial render.
   const settingsFirstRunRef = useRef(true);
   useEffect(() => {
     if (settingsFirstRunRef.current) {
       settingsFirstRunRef.current = false;
       return;
     }
-    saveSettings(settings);
+    saveTx80Settings(settings);
     engineRef.current?.setPitchBendRange(settings.bendRangeSemitones);
   }, [settings]);
-  const updateSettings = useCallback((partial: Partial<Tx27Settings>) => {
+  const updateSettings = useCallback((partial: Partial<Tx80Settings>) => {
     setSettings((prev) => ({ ...prev, ...partial }));
   }, []);
 
-  // Refs for audio-immediate pitch/mod updates; visual React state is throttled
-  // to one update per animation frame to avoid flooding the render queue.
-  const pitchBendRef = useRef(0);
-  const modWheelRef = useRef(0);
-  const pitchRafRef = useRef<number | null>(null);
-  const modRafRef = useRef<number | null>(null);
-
+  // ── Parameter binding (authoritative registry → state + engine) ─────────
   const setParameter = useCallback((id: string, value: ParameterValue) => {
     setPatchState((prev) => {
-      const next = setTx27Parameter(prev, id, value);
+      const next = setTx80Parameter(prev, id, value);
       engineRef.current?.setParameter(id, value);
       return next;
     });
@@ -229,22 +196,18 @@ function TX27App() {
 
   const setParameters = useCallback((updates: Readonly<Record<string, ParameterValue>>) => {
     setPatchState((prev) => {
-      const next = setTx27Parameters(prev, updates);
+      const next = setTx80Parameters(prev, updates);
       engineRef.current?.loadState(next);
       return next;
     });
   }, []);
 
-  // Performance controls: DSP update is immediate via engineRef; React visual
-  // state is throttled to at most one update per animation frame.
-  //
-  // NOTE: the strips deliberately do NOT initiate audio startup. In PLAY
-  // portrait they sit exactly where a thumb lands while gripping the phone,
-  // and an incidental brush at launch used to fire a "gesture" start attempt
-  // before the mobile audio session was warm — producing the STARTING →
-  // AUDIO START FAILED sequence with no intentional interaction. Bend/mod
-  // are meaningless without a sounding note anyway; audio arms on keys,
-  // POWER, preset load, or PLAY-mode entry instead.
+  // ── Pitch/mod strips: immediate DSP, frame-throttled visuals ───────────
+  const pitchBendRef = useRef(0);
+  const modWheelRef = useRef(0);
+  const pitchRafRef = useRef<number | null>(null);
+  const modRafRef = useRef<number | null>(null);
+
   const handlePitchChange = useCallback((v: number) => {
     engineRef.current?.setPitchBend(v);
     pitchBendRef.current = v;
@@ -277,31 +240,59 @@ function TX27App() {
     }
   }, []);
 
+  // Ribbon: engine owns the audible mapping (mode/range from the patch).
+  // Like the strips, the ribbon does NOT initiate audio startup — it is
+  // meaningless without a sounding note and sits in the thumb zone.
+  const handleRibbonMove = useCallback((norm: number) => {
+    engineRef.current?.setRibbonPosition(norm);
+  }, []);
+  const handleRibbonRelease = useCallback(() => {
+    engineRef.current?.releaseRibbon();
+  }, []);
+
   const [powerBusy, setPowerBusy] = useState(false);
   const [audioError, setAudioError] = useState(false);
   const [audioState, setAudioState] = useState<AudioInitState>("idle");
 
-  // Launch diagnostics (local-only; readable in SETUP → STARTUP DIAGNOSTICS).
-  // A normal launch records app_loaded_armed and NOTHING audio-related —
-  // audio work begins only when a genuine gesture arrives.
+  // Launch diagnostics (local-only). A normal launch records app_loaded_armed
+  // and NOTHING audio-related — audio work begins only on a genuine gesture.
   useEffect(() => {
     initStartupDiagnostics();
     recordStartupPhase("app_loaded_armed");
   }, []);
 
-  // First-note / first-attempt bookkeeping for the startup diagnostic trace.
+  // Read-only diagnostics hook for automated verification (browser e2e reads
+  // voice counts and analyser peak; nothing here can mutate engine state).
+  useEffect(() => {
+    const w = window as unknown as {
+      __TX80_DIAG?: () => unknown;
+      __TX80_PEAK?: () => number;
+    };
+    w.__TX80_DIAG = () => engineRef.current?.getDiagnostics() ?? null;
+    w.__TX80_PEAK = () => {
+      const analyser = engineRef.current?.getAnalyser();
+      if (!analyser) return -1;
+      const buf = new Uint8Array(analyser.fftSize);
+      analyser.getByteTimeDomainData(buf);
+      let peak = 0;
+      for (let i = 0; i < buf.length; i++) {
+        const v = Math.abs(buf[i] - 128) / 128;
+        if (v > peak) peak = v;
+      }
+      return peak;
+    };
+    return () => {
+      delete w.__TX80_DIAG;
+      delete w.__TX80_PEAK;
+    };
+  }, []);
   const firstNoteDiagRef = useRef({ queued: false, played: false });
-  const firstStartRecordedRef = useRef(false);
 
-  // Reflect REAL AudioContext state transitions (running/suspended/
-  // interrupted/closed) into the UI, so POWER can never claim ON while the
-  // context is actually suspended — backgrounding, screen lock, phone calls.
   const onRuntimeStatus = useCallback((status: SynthRuntimeStatus) => {
     recordStartupPhase("ctx:" + status.contextState);
     const running = status.phase === "ready" || status.contextState === "running";
     setPowered(running);
     if (running) {
-      // A late resume after a timeout is authoritative: clear stale failure UI.
       setAudioError(false);
       setAudioState("ready");
       return;
@@ -317,49 +308,21 @@ function TX27App() {
     }
   }, []);
 
-  // ── Centralized audio readiness ──────────────────────────────────────────
-  // patchRef always mirrors the latest patch state so the readiness path can
-  // apply the CURRENT patch regardless of when it was invoked (no stale
-  // closure). Updated synchronously in loadPatch/init/randomize as well, so
-  // an in-flight initialization always finishes with the newest patch.
+  // ── Centralized audio readiness (single in-flight promise) ─────────────
   const patchRef = useRef(patch);
   patchRef.current = patch;
-  // Single in-flight initialization promise — repeated calls (rapid preset
-  // changes, key presses, control drags) all share the same promise, so the
-  // engine is created exactly once and `powered` is settled exactly once.
   const readyPromiseRef = useRef<Promise<boolean> | null>(null);
 
-  /** Idempotent audio readiness. Creates the engine and AudioContext if
-   *  needed, resumes a suspended/interrupted context, disposes and REBUILDS
-   *  a dead engine (closed context), applies the currently selected patch,
-   *  and reflects the CONFIRMED engine state in `powered`/`audioState`.
-   *
-   *  Concurrency: all callers share one in-flight promise, so Strict Mode,
-   *  POWER spam, and rapid gestures can never create duplicate engines. The
-   *  whole attempt is BOUNDED — on failure or timeout the in-flight promise
-   *  is cleared so the very next gesture retries cleanly. Because the first
-   *  engine/resume step executes synchronously inside this call, invoking
-   *  this from a pointer/keyboard handler satisfies mobile gesture policy.
-   *  Resolves true when the engine is running. Never throws. */
-  const ensureAudioReady = useCallback((source: StartGestureSource = "unknown"): Promise<boolean> => {
+  const ensureAudioReady = useCallback((): Promise<boolean> => {
     if (engineRef.current?.isRunning()) return Promise.resolve(true);
     if (readyPromiseRef.current) return readyPromiseRef.current;
-    const recovering = !!engineRef.current && !engineRef.current.isUsable();
-    const resuming = !!engineRef.current && engineRef.current.isUsable();
-    recordStartupPhase("gesture_start_attempt:" + source);
-    if (!firstStartRecordedRef.current) {
-      firstStartRecordedRef.current = true;
-      if (source === "key") recordStartupPhase("key_first_start");
-      else if (source === "power") recordStartupPhase("power_first_start");
-    }
-    if (recovering) recordStartupPhase("rebuild_attempt");
-    else if (resuming) recordStartupPhase("resume_attempt");
+    recordStartupPhase("gesture_start_attempt");
 
     if (!runtimeRef.current) {
-      runtimeRef.current = new SynthRuntime<Patch>({
+      runtimeRef.current = new SynthRuntime<Tx80Patch>({
         timeoutMs: AUDIO_INIT_TIMEOUT_MS,
         createEngine: () => {
-          const engine = TX27_PRODUCT.createEngine(
+          const engine = new TX80ProductEngine(
             patchRef.current,
             settingsRef.current.bendRangeSemitones,
           );
@@ -374,7 +337,6 @@ function TX27App() {
     const p = (async () => {
       try {
         const running = await runtime.activate();
-        // Apply the latest patch — it may have changed while starting.
         engineRef.current?.loadState(patchRef.current);
         setAudioError(!running);
         setAudioState(running ? "ready" : "failed");
@@ -385,7 +347,7 @@ function TX27App() {
         }
         return running;
       } catch (err) {
-        console.error("TX27 audio initialization failed:", err);
+        console.error("TX-80 audio initialization failed:", err);
         recordStartupError(err);
         setAudioError(true);
         setAudioState("failed");
@@ -399,13 +361,14 @@ function TX27App() {
     readyPromiseRef.current = p;
     return p;
   }, [onRuntimeStatus]);
+  const ensureAudioReadyRef = useRef(ensureAudioReady);
   ensureAudioReadyRef.current = ensureAudioReady;
 
   const powerOn = useCallback(async () => {
     if (powerBusy) return;
     setPowerBusy(true);
     try {
-      await ensureAudioReady("power");
+      await ensureAudioReady();
     } finally {
       setPowerBusy(false);
     }
@@ -417,7 +380,6 @@ function TX27App() {
     try {
       await runtimeRef.current?.stop();
     } finally {
-      // Clear all performance UI state — voices were stopped in the engine.
       setActiveNotes(new Set());
       setSustain(false);
       pitchBendRef.current = 0;
@@ -439,21 +401,14 @@ function TX27App() {
       runtimeRef.current?.dispose();
       runtimeRef.current = null;
       engineRef.current = null;
+      midiRef.current?.disable();
+      midiRef.current = null;
       if (pitchRafRef.current !== null) cancelAnimationFrame(pitchRafRef.current);
       if (modRafRef.current !== null) cancelAnimationFrame(modRafRef.current);
     };
   }, []);
 
-  // ── Mobile PWA lifecycle ─────────────────────────────────────────────────
-  // ONE listener set for the app's lifetime (empty deps; live state reached
-  // through refs and stable setters — never re-registered on rerenders).
-  // Backgrounding/pagehide releases every held note and the sustain latch so
-  // nothing can stick while the context is frozen. Returning re-syncs POWER
-  // with the REAL context state — iOS may have suspended, interrupted, or
-  // closed it while away. Resume itself happens on the next user gesture
-  // (autoplay policy forbids it from these callbacks); a closed context is
-  // detected there by ensureAudioReady and rebuilt. Patches, settings, and
-  // localStorage are untouched.
+  // ── Mobile/PWA lifecycle: release notes on background, resync on return ─
   useEffect(() => {
     const releaseForBackground = () => {
       engineRef.current?.setSustain(false);
@@ -461,12 +416,10 @@ function TX27App() {
       for (const n of activeNotesRef.current) engineRef.current?.noteOff(n);
       pendingNotesRef.current.clear();
       setActiveNotes(new Set());
+      engineRef.current?.releaseRibbon();
     };
     const syncFromEngine = () => {
       const eng = engineRef.current;
-      recordStartupPhase(
-        "resync:" + (eng ? eng.getRuntimeStatus().contextState : "no-engine"),
-      );
       const running = !!eng?.isRunning();
       setPowered(running);
       setAudioState((prev) => {
@@ -489,8 +442,8 @@ function TX27App() {
       recordStartupPhase("pagehide");
       releaseForBackground();
     };
-    const onPageShow = (e: PageTransitionEvent) => {
-      recordStartupPhase(e.persisted ? "pageshow:bfcache" : "pageshow");
+    const onPageShow = () => {
+      recordStartupPhase("pageshow");
       syncFromEngine();
     };
     document.addEventListener("visibilitychange", onVisibility);
@@ -503,7 +456,7 @@ function TX27App() {
     };
   }, []);
 
-  // Output meter
+  // Output meter — reads the REAL analyser at the master output.
   useEffect(() => {
     if (!powered) return;
     let raf = 0;
@@ -524,19 +477,13 @@ function TX27App() {
     return () => cancelAnimationFrame(raf);
   }, [powered]);
 
-  // Notes played before the engine is running (first musical gesture powers
-  // the synth on). Kept in a ref so a noteOff arriving while power-up is in
-  // flight can cancel its note and never leave it stuck.
+  // ── Notes (first musical gesture powers the synth on) ──────────────────
   const pendingNotesRef = useRef<Map<number, number>>(new Map());
 
   const noteOn = useCallback(
     (note: number, vel = 0.9) => {
       const engine = engineRef.current;
       if (!engine || !engine.isRunning()) {
-        // First intentional musical interaction: power on through the
-        // authoritative engine lifecycle (this is a genuine user gesture, so
-        // it satisfies iOS/Safari autoplay policies), then sound any notes
-        // still held once the engine is confirmed running.
         pendingNotesRef.current.set(note, vel);
         if (!firstNoteDiagRef.current.queued) {
           firstNoteDiagRef.current.queued = true;
@@ -547,12 +494,9 @@ function TX27App() {
           n.add(note);
           return n;
         });
-        void ensureAudioReady("key").then((ok) => {
+        void ensureAudioReady().then((ok) => {
           const eng = engineRef.current;
           if (!ok || !eng?.isRunning()) {
-            // Init failed: drop pending notes and clear their highlights.
-            // NOT silent — ensureAudioReady has set the failed state, so the
-            // AUDIO START FAILED / RETRY banner is on screen.
             recordStartupPhase("first-note:dropped");
             const failed = new Set(pendingNotesRef.current.keys());
             pendingNotesRef.current.clear();
@@ -596,15 +540,16 @@ function TX27App() {
     });
   }, []);
 
-  // Computer keyboard — registered regardless of power state so a mapped
-  // key press can be the first gesture: it routes through noteOn, which
-  // initializes audio and flushes the pending note (same as on-screen keys).
+  const noteOnRef = useRef(noteOn);
+  noteOnRef.current = noteOn;
+  const noteOffRef = useRef(noteOff);
+  noteOffRef.current = noteOff;
+
+  // Computer keyboard piano (suspended while dialogs are open; keyups stay
+  // unguarded so a note held across a dialog opening can never stick).
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if (e.repeat) return;
-      // Suspended while the library or a dialog is open (typing ≠ playing).
-      // Note keyups below stay unguarded, so a note held across an overlay
-      // opening still gets its noteOff — nothing can stick.
       if (uiBlockedRef.current) return;
       const t = e.target as HTMLElement | null;
       if (
@@ -615,22 +560,29 @@ function TX27App() {
           t.isContentEditable)
       )
         return;
-      // Space on the LCD's central button = native button activation (opens
-      // quick access). Space-sustain still applies everywhere else.
-      if (e.key === " " && t === lcdBtnRef.current) return;
       if (e.key === " ") {
         e.preventDefault();
         setSustain(true);
         engineRef.current?.setSustain(true);
         return;
       }
-      if (e.key === "z") { setOctave((o) => Math.max(1, o - 1)); return; }
-      if (e.key === "x") { setOctave((o) => Math.min(7, o + 1)); return; }
+      if (e.key === "z") {
+        setOctave((o) => Math.max(1, o - 1));
+        return;
+      }
+      if (e.key === "x") {
+        setOctave((o) => Math.min(7, o + 1));
+        return;
+      }
       const off = KB_MAP[e.key.toLowerCase()];
       if (off != null) noteOn(12 * (octave + 1) + off, 0.9);
     };
     const up = (e: KeyboardEvent) => {
-      if (e.key === " ") { setSustain(false); engineRef.current?.setSustain(false); return; }
+      if (e.key === " ") {
+        setSustain(false);
+        engineRef.current?.setSustain(false);
+        return;
+      }
       const off = KB_MAP[e.key.toLowerCase()];
       if (off != null) noteOff(12 * (octave + 1) + off);
     };
@@ -642,149 +594,132 @@ function TX27App() {
     };
   }, [octave, noteOn, noteOff]);
 
-  // Authoritative preset-application path. UI state and DSP are updated from
-  // the same cloned patch; patchRef is set synchronously so an in-flight or
-  // newly triggered initialization always finishes with THIS patch (rapid
-  // preset changes simply overwrite patchRef — last one wins, no race).
-  // Selecting a preset is a valid first gesture: audio initializes if needed.
+  // Authoritative preset-application path. Held notes are released through
+  // the normal noteOff path first so a patch change can never leave a voice
+  // sounding with a stale layer configuration.
   const applyPatch = useCallback(
-    (p: Patch) => {
-      const cloned = clonePatch(p);
+    (p: Tx80Patch) => {
+      for (const n of activeNotesRef.current) engineRef.current?.noteOff(n);
+      pendingNotesRef.current.clear();
+      setActiveNotes(new Set());
+      const cloned = cloneTx80Patch(p);
       patchRef.current = cloned;
       setPatchState(cloned);
       const eng = engineRef.current;
       if (eng?.isRunning()) eng.loadState(cloned);
-      else void ensureAudioReady("preset");
+      else void ensureAudioReady();
     },
     [ensureAudioReady],
   );
 
-  // Release every sounding and pending note through the normal noteOff path
-  // (engine, sustain system, and key highlights stay consistent). Runs right
-  // before the library overlay opens so nothing is left stuck underneath it.
   const releaseAllNotes = useCallback(() => {
     for (const n of activeNotesRef.current) engineRef.current?.noteOff(n);
     pendingNotesRef.current.clear();
     setActiveNotes(new Set());
   }, []);
 
-  // All preset/library state and behavior (factory + user entries, favorites,
-  // recent, unsaved-change detection, dialogs, import/export) lives here.
-  // The CONFIRM PRESET CHANGE setting reaches the library through a ref so
-  // toggling it never re-renders or re-wires the library hook.
   const confirmDiscardRef = useRef(true);
   confirmDiscardRef.current = settings.confirmPresetChange;
-  const library = usePatchLibrary({
-    patch,
-    applyPatch,
-    uiModeRef,
-    onBeforeOpen: releaseAllNotes,
-    confirmDiscardRef,
-  });
-  // Quick-access panel state (anchored under the preset LCD). While it is
-  // open the computer-keyboard piano is suspended, same as the full library —
-  // keyups stay unguarded so a held note can never stick.
-  const [quickAccessOpen, setQuickAccessOpen] = useState(false);
-  const presetSurfaceRef = useRef<HTMLDivElement | null>(null);
-  uiBlockedRef.current =
-    library.libraryOpen ||
-    library.dialog.kind !== "none" ||
-    quickAccessOpen ||
-    settingsOpen;
+  const presets = useTx80Presets({ patch, applyPatch, confirmDiscardRef });
 
-  // INIT and RND are deliberate resets: silent (no discard prompt), and the
-  // result reads UNSAVED in the LCD until stored via Save As.
+  uiBlockedRef.current = presets.dialog.kind !== "none" || settingsOpen;
+
   const initPatch = () => {
-    const p = clonePatch(INIT_PATCH);
+    const p = cloneTx80Patch(TX80_INIT_PATCH);
     applyPatch(p);
-    library.markUnsaved(p);
-  };
-  const randomize = () => {
-    const p = randomizePatch(patch);
-    applyPatch(p);
-    library.markUnsaved(p);
+    presets.markUnsaved(p);
   };
 
-  // A11y: focus returns to the LCD's central button (declared above with the
-  // key-handler refs) when the full library or quick-access panel closes.
-  const wasLibraryOpenRef = useRef(false);
-  useEffect(() => {
-    if (wasLibraryOpenRef.current && !library.libraryOpen) lcdBtnRef.current?.focus();
-    wasLibraryOpenRef.current = library.libraryOpen;
-  }, [library.libraryOpen]);
-  const wasQuickAccessOpenRef = useRef(false);
-  useEffect(() => {
-    // When quick access closed because the full library opened from it, the
-    // library's focus trap takes over; the LCD regains focus when THAT closes.
-    if (wasQuickAccessOpenRef.current && !quickAccessOpen && !library.libraryOpen)
-      lcdBtnRef.current?.focus();
-    wasQuickAccessOpenRef.current = quickAccessOpen;
-  }, [quickAccessOpen, library.libraryOpen]);
-  // Same pattern for the SETUP dialog: focus returns to its opener.
-  const wasSettingsOpenRef = useRef(false);
-  useEffect(() => {
-    if (wasSettingsOpenRef.current && !settingsOpen) setupBtnRef.current?.focus();
-    wasSettingsOpenRef.current = settingsOpen;
-  }, [settingsOpen]);
+  // ── MIDI (guarded; created only on explicit enable) ────────────────────
+  const midiRef = useRef<Tx80Midi | null>(null);
+  const [midiStatus, setMidiStatus] = useState<Tx80MidiStatus>({ state: "idle" });
+  const enableMidi = useCallback(() => {
+    if (!midiRef.current) {
+      midiRef.current = new Tx80Midi({
+        noteOn: (n, v) => noteOnRef.current(n, v),
+        noteOff: (n) => noteOffRef.current(n),
+        sustain: (down) => {
+          setSustain(down);
+          engineRef.current?.setSustain(down);
+        },
+        pitchBend: (norm) => {
+          engineRef.current?.setPitchBend(norm);
+          setPitchBend(norm);
+        },
+        modWheel: (norm) => {
+          engineRef.current?.setModulation(norm);
+          setModWheel(norm);
+        },
+        allNotesOff: () => {
+          for (const n of activeNotesRef.current) engineRef.current?.noteOff(n);
+          pendingNotesRef.current.clear();
+          setActiveNotes(new Set());
+          engineRef.current?.setSustain(false);
+          setSustain(false);
+        },
+      });
+      midiRef.current.subscribe(setMidiStatus);
+    }
+    void midiRef.current.enable();
+  }, []);
+  const disableMidi = useCallback(() => {
+    midiRef.current?.disable();
+  }, []);
 
-  // Switch UI mode. Before the Keyboard unmounts (entering EDIT), release
-  // every pointer-owned note through the normal noteOff path so no note gets
-  // stuck — engine, sustain system, and key highlights all stay consistent.
-  // Engine, AudioContext, DSP, preset, bend range, pitch/MOD are untouched.
-  const switchUiMode = useCallback((mode: Tx27UiMode) => {
+  // Switch UI mode; release pointer-owned notes before the keyboard unmounts.
+  const switchUiMode = useCallback((mode: Tx80UiMode) => {
     if (mode === uiModeRef.current) return;
     if (mode === "editor") {
-      // Release notes through the normal path; sustain system handles held
-      // sustain correctly. Then clear highlights.
       for (const n of activeNotesRef.current) engineRef.current?.noteOff(n);
       setActiveNotes(new Set());
     }
     if (mode === "performance") {
-      // Entering Play mode is a valid first gesture for audio readiness.
-      void ensureAudioReadyRef.current?.("play_mode");
+      void ensureAudioReadyRef.current?.();
     }
-    try {
-      localStorage.setItem(UI_MODE_KEY, mode);
-    } catch {
-      /* noop */
-    }
+    saveTx80UiMode(mode);
     setUiModeState(mode);
   }, []);
 
   const panic = useCallback(() => {
-    engineRef.current?.panic();            // stops voices, engine resets pitch bend
-    setActiveNotes(new Set());             // clear key highlights
+    engineRef.current?.panic(); // stops voices, recentres bend + ribbon
+    pendingNotesRef.current.clear();
+    setActiveNotes(new Set());
+    setSustain(false);
     pitchBendRef.current = 0;
-    setPitchBend(0);                       // reset visual strip to centre
+    setPitchBend(0);
     if (pitchRafRef.current !== null) {
       cancelAnimationFrame(pitchRafRef.current);
       pitchRafRef.current = null;
     }
-    // MOD wheel is intentionally NOT reset — it is a latching control.
   }, []);
 
-  const vintageClass = patch.vintage.enabled && patch.vintage.age > 0.1 ? "vintage-active" : "";
+  const activeName = presets.activeEntry?.name ?? patch.name;
+  const activeIndex = Math.max(
+    0,
+    presets.entries.findIndex((e) => e.id === presets.activeId),
+  );
 
   return (
     <div
-      className={`h-[100dvh] w-full flex flex-col overflow-hidden ${vintageClass}`}
+      className="h-[100dvh] w-full flex flex-col overflow-hidden"
       style={{
-        background:
-          "radial-gradient(ellipse at top, #2a2724 0%, #16130f 80%), #0a0908",
+        background: "radial-gradient(ellipse at top, #262320 0%, #131110 80%), #0a0908",
         paddingTop: "env(safe-area-inset-top)",
         paddingBottom: "env(safe-area-inset-bottom)",
         paddingLeft: "env(safe-area-inset-left)",
         paddingRight: "env(safe-area-inset-right)",
       }}
     >
-      {/* TOP BAR — logo, mode switch, power, panic. The patch display, meter
-          and audio-error indicator live in the dedicated preset LCD below, so
-          this row stays compact on every width. */}
-      <header className="flex items-center gap-2 px-3 py-2 border-b border-black/60"
-        style={{ background: "linear-gradient(180deg, #262320 0%, #1a1815 100%)" }}>
+      {/* TOP BAR */}
+      <header
+        className="flex items-center gap-2 px-3 py-2 border-b border-black/60"
+        style={{ background: "linear-gradient(180deg, #23201d 0%, #171512 100%)" }}
+      >
         <div className="flex flex-col shrink-0">
           <div className="text-[10px] tracking-[0.3em] text-tx-muted leading-none">TXPPS</div>
-          <div className="text-base font-bold tracking-widest text-tx-cream leading-tight">TX27</div>
+          <div className="text-base font-bold tracking-widest text-tx-cream leading-tight">
+            TX-80
+          </div>
           <div className="text-[7px] tracking-[0.2em] text-tx-muted leading-none">v1.0.0</div>
         </div>
         <div className="flex gap-[2px] shrink-0 ml-auto" role="group" aria-label="Interface mode">
@@ -816,7 +751,7 @@ function TX27App() {
               : powered
                 ? "● ON"
                 : audioState === "idle"
-                  ? "READY" /* armed: launch state, first gesture unlocks audio */
+                  ? "READY"
                   : "POWER"}
         </button>
         <button className="tx-btn shrink-0" onClick={panic} style={{ color: "var(--tx-red)" }}>
@@ -824,9 +759,7 @@ function TX27App() {
         </button>
       </header>
 
-      {/* AUDIO START FAILED — compact themed recovery strip. The rest of the
-          instrument stays alive; RETRY runs the same guarded init path (which
-          rebuilds a dead engine if needed). Never shown during normal use. */}
+      {/* AUDIO START FAILED recovery strip */}
       {audioState === "failed" && (
         <div className="flex items-center gap-2 px-3 py-1.5 border-b border-black/60 bg-tx-panel-dark">
           <span className="text-[9px] tracking-widest min-w-0" style={{ color: "var(--tx-red)" }}>
@@ -843,58 +776,64 @@ function TX27App() {
         </div>
       )}
 
-      {/* PRESET LCD — one integrated hardware display: ◀ patch-info ★ ▶ with
-          the themed quick-access panel anchored beneath it (replaces the old
-          native select + separate arrow/★/LIBRARY buttons). Row 2 keeps the
-          patch actions (hidden in PLAY). All loading still goes through the
-          guarded requestLoad path with stable preset IDs, so renames and
-          deletes never shift the selection. */}
+      {/* PRESET LCD + actions */}
       <div className="px-2 py-1.5 border-b border-black/50 bg-tx-panel-dark flex flex-col gap-1">
-        <div ref={presetSurfaceRef} className="relative">
-          <PresetLCD
-            library={library}
-            patch={patch}
-            audioError={audioError}
-            meterSlot={uiMode !== "performance" ? <MeterBar value={meter} /> : undefined}
-            quickAccessOpen={quickAccessOpen}
-            onToggleQuickAccess={() => setQuickAccessOpen((o) => !o)}
-            centerRef={lcdBtnRef}
-          />
-          {quickAccessOpen && (
-            <PresetQuickAccess
-              library={library}
-              anchorRef={presetSurfaceRef}
-              onSelect={(id) => {
-                setQuickAccessOpen(false);
-                library.requestLoad(id);
-              }}
-              onOpenLibrary={() => {
-                setQuickAccessOpen(false);
-                library.openLibrary();
-              }}
-              onClose={() => setQuickAccessOpen(false)}
-            />
-          )}
+        <div className="flex items-stretch gap-1">
+          <button
+            className="tx-btn px-2.5 shrink-0"
+            onClick={() => presets.step(-1)}
+            aria-label="Previous preset"
+          >
+            ◀
+          </button>
+          <div className="tx-lcd-box flex-1 min-w-0 px-2.5 py-1 flex items-center gap-2">
+            <div className="flex-1 min-w-0">
+              <div className="text-[8px] opacity-60 leading-none tracking-[0.25em]">PATCH</div>
+              <div
+                className="text-sm font-bold tracking-wider truncate leading-tight"
+                data-testid="tx80-patch-name"
+              >
+                {activeName}
+                {presets.unsaved && <span className="opacity-70 text-[9px] ml-2">● UNSAVED</span>}
+              </div>
+              <div className="text-[8px] opacity-60 leading-none tracking-widest">
+                {activeIndex + 1}/{presets.entries.length} ·{" "}
+                {presets.activeIsUser ? "USER" : "TXPPS FACTORY"} · POLY {patch.polyphony}
+                {audioError ? " · AUDIO ERR" : ""}
+              </div>
+            </div>
+            <MeterBar value={meter} />
+          </div>
+          <button
+            className="tx-btn px-2.5 shrink-0"
+            onClick={() => presets.step(1)}
+            aria-label="Next preset"
+          >
+            ▶
+          </button>
         </div>
         {uiMode !== "performance" && (
           <div className="flex items-center gap-1">
-            <button className="tx-btn flex-1" onClick={library.beginSaveAs}>SAVE AS</button>
+            <button className="tx-btn flex-1" onClick={presets.beginSaveAs}>
+              SAVE AS
+            </button>
             <button
               className="tx-btn flex-1 disabled:opacity-40"
-              onClick={() => library.activeId && library.beginRename(library.activeId)}
-              disabled={!library.activeIsUser}
+              onClick={() => presets.activeId && presets.beginRename(presets.activeId)}
+              disabled={!presets.activeIsUser}
             >
               REN
             </button>
             <button
               className="tx-btn flex-1 disabled:opacity-40"
-              onClick={() => library.activeId && library.beginDelete(library.activeId)}
-              disabled={!library.activeIsUser}
+              onClick={() => presets.activeId && presets.beginDelete(presets.activeId)}
+              disabled={!presets.activeIsUser}
             >
               DEL
             </button>
-            <button className="tx-btn flex-1" onClick={initPatch}>INIT</button>
-            <button className="tx-btn flex-1" onClick={randomize}>RND</button>
+            <button className="tx-btn flex-1" onClick={initPatch}>
+              INIT
+            </button>
             <button
               ref={setupBtnRef}
               className="tx-btn flex-1"
@@ -909,9 +848,11 @@ function TX27App() {
 
       {/* MAIN AREA */}
       <main className="flex-1 min-h-0 overflow-hidden flex flex-col">
-        {/* Tab strip - mobile */}
-        <div className={`flex gap-1 px-2 py-1.5 md:hidden ${uiMode === "performance" ? "hidden" : ""}`}>
-          {(["ops", "algo", "voice", "mix", "vintage", "fx"] as Tab[]).map((t) => (
+        {/* Tab strip — phone */}
+        <div
+          className={`flex gap-1 px-2 py-1.5 md:hidden ${uiMode === "performance" ? "hidden" : ""}`}
+        >
+          {(Object.keys(TAB_LABELS) as Tab[]).map((t) => (
             <button
               key={t}
               className={`tx-btn flex-1 px-1 ${tab === t ? "tx-btn-active" : ""}`}
@@ -923,254 +864,310 @@ function TX27App() {
         </div>
 
         <div
-          className={`flex-1 min-h-0 overflow-auto px-2 py-2 grid gap-2 md:grid-cols-12 md:grid-rows-[auto_auto] ${
+          className={`flex-1 min-h-0 overflow-auto px-2 py-2 grid gap-2 md:grid-cols-12 content-start ${
             uiMode === "performance" ? "hidden md:hidden" : ""
           }`}
         >
-          {/* Operators */}
+          {/* LAYER I */}
           <section
-            className={`tx-panel p-2 md:col-span-7 md:row-span-2 ${tab !== "ops" ? "hidden md:block" : ""}`}
+            className={`tx-panel p-2 md:col-span-6 ${tab !== "l1" ? "hidden md:block" : ""}`}
           >
-            <PanelTitle>OPERATORS</PanelTitle>
-            <div className="flex gap-1 mb-2">
-              {[0, 1, 2, 3].map((i) => (
-                <button
-                  key={i}
-                  className={`tx-btn flex-1 ${selectedOp === i ? "tx-btn-active" : ""} ${!patch.operators[i].enabled ? "opacity-50" : ""}`}
-                  onClick={() => setSelectedOp(i)}
-                >
-                  OP{i + 1}
-                </button>
-              ))}
-            </div>
-            <OperatorEditor
-              op={patch.operators[selectedOp]}
-              opIndex={selectedOp}
-              onChange={(o) => {
-                const updates: Record<string, ParameterValue> = {};
-                for (const [key, value] of Object.entries(o)) {
-                  if (value !== undefined) updates[`op${selectedOp + 1}.${key}`] = value;
-                }
-                setParameters(updates);
-              }}
-            />
-            <div className="mt-3 text-[9px] tracking-[0.3em] text-tx-muted pb-1 border-b border-black/40">
-              GLOBAL · ALL OPERATORS
-            </div>
-            <div className="mt-2 grid grid-cols-4 gap-2">
-              <Knob label="FM DEPTH" value={patch.fmDepth} min={0} max={1} onChange={(v) => setParameter("fm.depth", v)} format={(v) => (v * 100).toFixed(0)} />
-              <Knob label="FEEDBACK" value={patch.feedback} min={0} max={0.8} onChange={(v) => setParameter("fm.feedback", v)} format={(v) => (v * 100).toFixed(0)} />
-              <Knob label="VEL SENS" value={patch.velocitySens} min={0} max={1} onChange={(v) => setParameter("velocity.sensitivity", v)} format={(v) => (v * 100).toFixed(0)} />
-              <Knob label="M.ATK" value={patch.masterAttack} min={0} max={1} onChange={(v) => setParameter("envelope.masterAttack", v)} format={(v) => v.toFixed(2)} />
-            </div>
+            <LayerPanel index={0} layer={patch.layers[0]} setParameter={setParameter} />
           </section>
 
-          {/* Algorithm */}
-          <section className={`tx-panel p-2 md:col-span-5 ${tab !== "algo" ? "hidden md:block" : ""}`}>
-            <PanelTitle>ALGORITHM {patch.algorithm}</PanelTitle>
-            <div className="flex gap-2 items-stretch">
-              <div className="tx-lcd-box flex-1 aspect-square max-h-56">
-                <AlgorithmView
-                  id={patch.algorithm}
-                  active={powered && activeNotes.size > 0}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-1 flex-1">
-                {ALGORITHMS.map((a) => (
-                  <button
-                    key={a.id}
-                    onClick={() => setParameter("algo", a.id)}
-                    className={`tx-btn ${patch.algorithm === a.id ? "tx-btn-active" : ""}`}
-                  >
-                    {a.id}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="text-[10px] text-tx-muted text-center mt-1 tracking-widest">
-              {ALGORITHMS[patch.algorithm - 1].name}
-            </div>
+          {/* LAYER II */}
+          <section
+            className={`tx-panel p-2 md:col-span-6 ${tab !== "l2" ? "hidden md:block" : ""}`}
+          >
+            <LayerPanel index={1} layer={patch.layers[1]} setParameter={setParameter} />
           </section>
 
-          {/* VOICE — voice allocation, portamento, filter, performance prefs */}
-          <section className={`tx-panel p-2 md:col-span-5 ${tab !== "voice" ? "hidden md:block" : ""}`}>
-            <PanelTitle>VOICE · FILTER</PanelTitle>
+          {/* PERFORMANCE — voice allocation, travel, ribbon behavior */}
+          <section
+            className={`tx-panel p-2 md:col-span-4 ${tab !== "perf" ? "hidden md:block" : ""}`}
+          >
+            <PanelTitle>VOICE · TRAVEL · RIBBON</PanelTitle>
             <div className="flex gap-1 mb-2">
               <button
                 className={`tx-btn flex-1 ${patch.voiceMode === "poly" ? "tx-btn-active" : ""}`}
                 onClick={() => setParameter("voice.mode", "poly")}
-              >POLY</button>
+              >
+                POLY
+              </button>
               <button
-                className={`tx-btn flex-1 ${patch.voiceMode === "mono" ? "tx-btn-active" : ""}`}
-                onClick={() => setParameter("voice.mode", "mono")}
-              >MONO</button>
-              {([4, 8, 12] as const).map((n) => (
+                className={`tx-btn flex-1 ${patch.voiceMode === "solo" ? "tx-btn-active" : ""}`}
+                onClick={() => setParameter("voice.mode", "solo")}
+              >
+                SOLO
+              </button>
+              {([4, 8, 12, 16] as const).map((n) => (
                 <button
                   key={n}
-                  className={`tx-btn flex-1 ${patch.polyphony === n ? "tx-btn-active" : ""}`}
+                  className={`tx-btn flex-1 px-1 ${patch.polyphony === n ? "tx-btn-active" : ""}`}
                   onClick={() => setParameter("voice.polyphony", n)}
-                >{n}V</button>
+                >
+                  {n}V
+                </button>
               ))}
             </div>
-            <div className="flex items-center gap-2 mb-2">
-              <div
-                className="text-[10px] tracking-widest text-tx-muted shrink-0"
-                title="Global setting — applies to every preset, never saved with patches"
-              >
-                BEND RANGE
-              </div>
-              <TxSelect
-                value={settings.bendRangeSemitones}
-                options={BEND_OPTIONS}
-                onChange={(v) => updateSettings({ bendRangeSemitones: v })}
-                className="flex-1 min-w-0 text-center"
-                ariaLabel="Global pitch bend range in semitones"
-              />
-            </div>
             <div className="flex items-center gap-1 mb-2">
-              <div className="text-[10px] tracking-widest text-tx-muted shrink-0 mr-1">GLIDE</div>
+              <div className="text-[10px] tracking-widest text-tx-muted shrink-0 mr-1">TRAVEL</div>
               {(
                 [
-                  ["off", "OFF", "No glide — notes start exactly at pitch"],
-                  ["poly", "POLY", "Every new note glides from the last played pitch"],
-                  ["mono", "LEGATO", "Mono legato — overlapping notes glide, one voice"],
+                  ["off", "OFF", "Notes start exactly at pitch"],
+                  ["porta", "PORTA", "Portamento — smooth continuous glide with exact arrival"],
+                  ["gliss", "GLISS", "Glissando — discrete chromatic semitone steps"],
                 ] as const
               ).map(([mode, label, hint]) => (
                 <button
                   key={mode}
-                  className={`tx-btn flex-1 ${patch.glideMode === mode ? "tx-btn-active" : ""}`}
-                  onClick={() => setParameter("glide.mode", mode)}
-                  aria-pressed={patch.glideMode === mode}
+                  className={`tx-btn flex-1 ${patch.pitchTravel.mode === mode ? "tx-btn-active" : ""}`}
+                  onClick={() => setParameter("pitch.mode", mode)}
+                  aria-pressed={patch.pitchTravel.mode === mode}
                   title={hint}
                 >
                   {label}
                 </button>
               ))}
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              <Knob label="GLIDE" value={patch.glide} min={0} max={0.5} onChange={(v) => setParameter("glide.time", v)} format={(v) => v.toFixed(2)} />
-              <Knob label="CUTOFF" taper="log" value={patch.filter.cutoff} min={80} max={18000} onChange={(v) => setParameter("filter.cutoff", v)} format={(v) => v < 1000 ? v.toFixed(0) : (v / 1000).toFixed(1) + "k"} />
-              <Knob label="RESO" value={patch.filter.resonance} min={0} max={1} onChange={(v) => setParameter("filter.resonance", v)} format={(v) => (v * 100).toFixed(0)} />
-            </div>
-          </section>
-
-          {/* Vintage */}
-          <section className={`tx-panel p-2 md:col-span-7 ${tab !== "vintage" ? "hidden md:block" : ""}`}>
-            <div className="flex items-center justify-between mb-2">
-              <PanelTitle>VINTAGE CIRCUIT</PanelTitle>
-              <button
-                className={`tx-btn ${patch.vintage.enabled ? "tx-btn-active" : ""}`}
-                onClick={() => setParameter("vintage.enabled", !patch.vintage.enabled)}
-              >{patch.vintage.enabled ? "ON" : "OFF"}</button>
-            </div>
-            <div className="flex items-center gap-3">
-              <input
-                type="range" min={0} max={1} step={0.001}
-                value={patch.vintage.age}
-                onChange={(e) => setParameter("vintage.age", Number(e.target.value))}
-                className="flex-1 h-8 tx-range"
-                // Dev-tooling instrumentation injects a phantom style prop on
-                // this node in some environments, tripping a false-positive
-                // hydration warning; server HTML is verified correct.
-                suppressHydrationWarning
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              <ParamKnob
+                id="pitch.time"
+                label="TIME"
+                value={patch.pitchTravel.time}
+                onChange={setParameter}
+                format={(v) => v.toFixed(2)}
               />
-              <div className="tx-lcd-box px-2 py-1 min-w-16 text-center">
-                <div className="text-[8px] opacity-60 leading-none">AGE</div>
-                <div className="text-lg font-bold leading-none">{Math.round(patch.vintage.age * 100)}%</div>
-              </div>
+              <ParamKnob
+                id="velocity.sensitivity"
+                label="VEL SENS"
+                value={patch.velocitySens}
+                onChange={setParameter}
+                format={pct}
+              />
             </div>
-            <div className="text-[10px] text-tx-muted mt-1 tracking-widest text-center">
-              {ageLabel(patch.vintage.age)}
+            <div className="flex items-center gap-1 mb-2">
+              <div className="text-[10px] tracking-widest text-tx-muted shrink-0 mr-1">RIBBON</div>
+              {(
+                [
+                  ["pitch", "PITCH", "Continuous bend, springs back to centre"],
+                  ["gliss", "GLISS", "Stepped semitones, springs back to centre"],
+                  ["hold", "HOLD", "Continuous bend, holds its last value"],
+                ] as const
+              ).map(([mode, label, hint]) => (
+                <button
+                  key={mode}
+                  className={`tx-btn flex-1 ${patch.ribbon.mode === mode ? "tx-btn-active" : ""}`}
+                  onClick={() => setParameter("ribbon.mode", mode)}
+                  aria-pressed={patch.ribbon.mode === mode}
+                  title={hint}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
-            <div className="grid grid-cols-4 gap-2 mt-2">
-                {(
-                  [
-                    ["WARMTH", "warmth"],
-                    ["GRAIN", "grain"],
-                    ["WEAR", "wear"],
-                    ["DRIFT", "drift"],
-                    ["NOISE", "noise"],
-                    ["ST.AGE", "stereoAge"],
-                    ["DRIVE", "drive"],
-                  ] as const
-                ).map(([label, key]) => (
-                  <Knob
-                    key={key}
-                    label={label}
-                    value={patch.vintage[key]}
-                    min={0}
-                    max={1}
-                    onChange={(v) => setParameter(`vintage.${key}`, v)}
-                    format={(v) => (v * 100).toFixed(0)}
-                  />
-                ))}
+            <div className="flex items-center gap-2">
+              <div className="text-[10px] tracking-widest text-tx-muted shrink-0">RANGE</div>
+              <TxSelect
+                value={patch.ribbon.range}
+                options={RIBBON_RANGE_OPTIONS}
+                onChange={(v) => setParameter("ribbon.range", v)}
+                className="flex-1 min-w-0 text-center"
+                ariaLabel="Ribbon range in semitones"
+              />
             </div>
           </section>
 
-          {/* MIX — output level and FX send levels only. The send knobs are
-              the same parameters as the wet/amount knobs on the FX page
-              (single source of truth), surfaced here as a mixer view. */}
-          <section className={`tx-panel p-2 md:col-span-5 ${tab !== "mix" ? "hidden md:block" : ""}`}>
-            <PanelTitle>MIX · OUTPUT</PanelTitle>
-            <div className="grid grid-cols-4 gap-2">
-              <Knob label="VOLUME" value={patch.masterVolume} min={0} max={1} onChange={(v) => setParameter("master.volume", v)} format={(v) => (v * 100).toFixed(0)} />
-              <div className={patch.chorus.enabled ? "" : "opacity-40"} title={patch.chorus.enabled ? undefined : "Chorus is OFF (FX page)"}>
-                <Knob label="CHO SEND" value={patch.chorus.amount} min={0} max={1} onChange={(v) => setParameter("fx.chorus.amount", v)} format={(v) => (v * 100).toFixed(0)} />
+          {/* MODULATION — two LFOs */}
+          <section
+            className={`tx-panel p-2 md:col-span-4 ${tab !== "mod" ? "hidden md:block" : ""}`}
+          >
+            <PanelTitle>MODULATION</PanelTitle>
+            {(
+              [
+                ["A", patch.lfoA],
+                ["B", patch.lfoB],
+              ] as const
+            ).map(([which, lfo]) => (
+              <div key={which} className={which === "A" ? "mb-3" : ""}>
+                <div className="flex items-center gap-1 mb-1">
+                  <div className="text-[9px] tracking-[0.3em] text-tx-muted shrink-0">
+                    LFO {which}
+                  </div>
+                  <div className="flex gap-1 flex-1">
+                    {(["sine", "triangle", "square", "saw"] as const).map((w) => (
+                      <button
+                        key={w}
+                        className={`tx-btn flex-1 px-0.5 ${lfo.wave === w ? "tx-btn-active" : ""}`}
+                        onClick={() => setParameter(`lfo${which}.wave`, w)}
+                      >
+                        {w === "sine"
+                          ? "SIN"
+                          : w === "triangle"
+                            ? "TRI"
+                            : w === "square"
+                              ? "SQR"
+                              : "SAW"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="grid grid-cols-2 gap-2 flex-1">
+                    <ParamKnob
+                      id={`lfo${which}.rate`}
+                      label="RATE"
+                      taper="log"
+                      value={lfo.rate}
+                      onChange={setParameter}
+                      format={(v) => v.toFixed(2)}
+                    />
+                    <ParamKnob
+                      id={`lfo${which}.depth`}
+                      label="DEPTH"
+                      value={lfo.depth}
+                      onChange={setParameter}
+                      format={pct}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1 w-28 shrink-0">
+                    <div className="text-[8px] tracking-[0.25em] text-tx-muted text-center">
+                      DEST
+                    </div>
+                    <TxSelect
+                      value={lfo.destination}
+                      options={LFO_DEST_OPTIONS as unknown as { value: string; label: string }[]}
+                      onChange={(v) => setParameter(`lfo${which}.dest`, v)}
+                      className="text-center"
+                      ariaLabel={`LFO ${which} destination`}
+                    />
+                  </div>
+                </div>
               </div>
-              <div className={patch.delay.enabled ? "" : "opacity-40"} title={patch.delay.enabled ? undefined : "Delay is OFF (FX page)"}>
-                <Knob label="DLY SEND" value={patch.delay.mix} min={0} max={1} onChange={(v) => setParameter("fx.delay.mix", v)} format={(v) => (v * 100).toFixed(0)} />
-              </div>
-              <div className={patch.reverb.enabled ? "" : "opacity-40"} title={patch.reverb.enabled ? undefined : "Reverb is OFF (FX page)"}>
-                <Knob label="REV SEND" value={patch.reverb.mix} min={0} max={1} onChange={(v) => setParameter("fx.reverb.mix", v)} format={(v) => (v * 100).toFixed(0)} />
+            ))}
+          </section>
+
+          {/* OUTPUT */}
+          <section
+            className={`tx-panel p-2 md:col-span-4 ${tab !== "out" ? "hidden md:block" : ""}`}
+          >
+            <PanelTitle>MASTER OUTPUT</PanelTitle>
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              <ParamKnob
+                id="master.volume"
+                label="VOLUME"
+                value={patch.master.volume}
+                onChange={setParameter}
+                format={pct}
+              />
+              <ParamKnob
+                id="master.balance"
+                label="BALANCE"
+                value={patch.master.balance}
+                onChange={setParameter}
+                format={(v) =>
+                  Math.abs(v) < 0.005
+                    ? "C"
+                    : v < 0
+                      ? `I ${Math.round(-v * 100)}`
+                      : `II ${Math.round(v * 100)}`
+                }
+              />
+            </div>
+            <div className="tx-lcd-box px-2 py-2 flex items-center gap-2">
+              <div className="text-[8px] opacity-60 tracking-[0.25em] shrink-0">OUT</div>
+              <div className="flex-1">
+                <MeterBar value={meter} wide />
               </div>
             </div>
             <div className="text-[9px] text-tx-muted mt-2 tracking-widest text-center">
-              SENDS MIRROR THE FX PAGE WET LEVELS
+              SAFETY LIMITER ALWAYS ENGAGED AT THE MASTER STAGE
             </div>
           </section>
 
           {/* FX */}
-          <section className={`tx-panel p-2 md:col-span-12 ${tab !== "fx" ? "hidden md:block" : ""}`}>
-            <PanelTitle>EFFECTS</PanelTitle>
+          <section
+            className={`tx-panel p-2 md:col-span-12 ${tab !== "fx" ? "hidden md:block" : ""}`}
+          >
+            <PanelTitle>EFFECTS · CHORUS → DELAY → REVERB</PanelTitle>
             <div className="grid gap-2 md:grid-cols-3">
-              {/* Chorus */}
               <div className="tx-panel p-2">
                 <div className="flex items-center justify-between mb-2">
                   <div className="text-[10px] tracking-widest text-tx-muted">CHORUS</div>
                   <button
                     className={`tx-btn ${patch.chorus.enabled ? "tx-btn-active" : ""}`}
                     onClick={() => setParameter("fx.chorus.enabled", !patch.chorus.enabled)}
-                  >{patch.chorus.enabled ? "ON" : "OFF"}</button>
+                  >
+                    {patch.chorus.enabled ? "ON" : "OFF"}
+                  </button>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
-                  <Knob label="AMT" value={patch.chorus.amount} min={0} max={1} onChange={(v) => setParameter("fx.chorus.amount", v)} format={(v) => (v * 100).toFixed(0)} />
-                  <Knob label="RATE" value={patch.chorus.rate} min={0.05} max={8} onChange={(v) => setParameter("fx.chorus.rate", v)} format={(v) => v.toFixed(2)} />
-                  <Knob label="DEPTH" value={patch.chorus.depth} min={0} max={0.01} step={0.0001} onChange={(v) => setParameter("fx.chorus.depth", v)} format={(v) => (v * 1000).toFixed(1)} />
+                  <ParamKnob
+                    id="fx.chorus.amount"
+                    label="AMT"
+                    value={patch.chorus.amount}
+                    onChange={setParameter}
+                    format={pct}
+                  />
+                  <ParamKnob
+                    id="fx.chorus.rate"
+                    label="RATE"
+                    value={patch.chorus.rate}
+                    onChange={setParameter}
+                    format={(v) => v.toFixed(2)}
+                  />
+                  <ParamKnob
+                    id="fx.chorus.depth"
+                    label="DEPTH"
+                    value={patch.chorus.depth}
+                    onChange={setParameter}
+                    format={(v) => (v * 1000).toFixed(1)}
+                  />
                 </div>
               </div>
-              {/* Delay */}
               <div className="tx-panel p-2">
                 <div className="flex items-center justify-between mb-2">
                   <div className="text-[10px] tracking-widest text-tx-muted">DELAY</div>
                   <button
                     className={`tx-btn ${patch.delay.enabled ? "tx-btn-active" : ""}`}
                     onClick={() => setParameter("fx.delay.enabled", !patch.delay.enabled)}
-                  >{patch.delay.enabled ? "ON" : "OFF"}</button>
+                  >
+                    {patch.delay.enabled ? "ON" : "OFF"}
+                  </button>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
-                  <Knob label="TIME" value={patch.delay.time} min={0.02} max={1.2} onChange={(v) => setParameter("fx.delay.time", v)} format={(v) => (v * 1000).toFixed(0)} />
-                  <Knob label="FB" value={patch.delay.feedback} min={0} max={0.85} onChange={(v) => setParameter("fx.delay.feedback", v)} format={(v) => (v * 100).toFixed(0)} />
-                  <Knob label="MIX" value={patch.delay.mix} min={0} max={1} onChange={(v) => setParameter("fx.delay.mix", v)} format={(v) => (v * 100).toFixed(0)} />
+                  <ParamKnob
+                    id="fx.delay.time"
+                    label="TIME"
+                    value={patch.delay.time}
+                    onChange={setParameter}
+                    format={(v) => (v * 1000).toFixed(0)}
+                  />
+                  <ParamKnob
+                    id="fx.delay.feedback"
+                    label="FB"
+                    value={patch.delay.feedback}
+                    onChange={setParameter}
+                    format={pct}
+                  />
+                  <ParamKnob
+                    id="fx.delay.mix"
+                    label="MIX"
+                    value={patch.delay.mix}
+                    onChange={setParameter}
+                    format={pct}
+                  />
                 </div>
               </div>
-              {/* Reverb */}
               <div className="tx-panel p-2">
                 <div className="flex items-center justify-between mb-2">
                   <div className="text-[10px] tracking-widest text-tx-muted">REVERB</div>
                   <button
                     className={`tx-btn ${patch.reverb.enabled ? "tx-btn-active" : ""}`}
                     onClick={() => setParameter("fx.reverb.enabled", !patch.reverb.enabled)}
-                  >{patch.reverb.enabled ? "ON" : "OFF"}</button>
+                  >
+                    {patch.reverb.enabled ? "ON" : "OFF"}
+                  </button>
                 </div>
                 <div className="flex gap-1 mb-2">
                   {(["digital", "hall", "glass"] as const).map((t) => (
@@ -1178,190 +1175,292 @@ function TX27App() {
                       key={t}
                       className={`tx-btn flex-1 ${patch.reverb.type === t ? "tx-btn-active" : ""}`}
                       onClick={() => setParameter("fx.reverb.type", t)}
-                    >{t === "digital" ? "DIG" : t === "hall" ? "HALL" : "GLASS"}</button>
+                    >
+                      {t === "digital" ? "DIG" : t === "hall" ? "HALL" : "GLASS"}
+                    </button>
                   ))}
                 </div>
                 <div className="grid grid-cols-3 gap-2">
-                  <Knob label="MIX" value={patch.reverb.mix} min={0} max={1} onChange={(v) => setParameter("fx.reverb.mix", v)} format={(v) => (v * 100).toFixed(0)} />
-                  <Knob label="SIZE" value={patch.reverb.size} min={0} max={1} onChange={(v) => setParameter("fx.reverb.size", v)} format={(v) => (v * 100).toFixed(0)} />
-                  <Knob label="DECAY" value={patch.reverb.decay} min={0} max={1} onChange={(v) => setParameter("fx.reverb.decay", v)} format={(v) => (v * 100).toFixed(0)} />
-                  <Knob label="PRE" value={patch.reverb.preDelay} min={0} max={0.2} onChange={(v) => setParameter("fx.reverb.preDelay", v)} format={(v) => (v * 1000).toFixed(0)} />
-                  <Knob label="DAMP" value={patch.reverb.damping} min={0} max={1} onChange={(v) => setParameter("fx.reverb.damping", v)} format={(v) => (v * 100).toFixed(0)} />
-                  <Knob label="WIDTH" value={patch.reverb.width} min={0} max={1} onChange={(v) => setParameter("fx.reverb.width", v)} format={(v) => (v * 100).toFixed(0)} />
+                  <ParamKnob
+                    id="fx.reverb.mix"
+                    label="MIX"
+                    value={patch.reverb.mix}
+                    onChange={setParameter}
+                    format={pct}
+                  />
+                  <ParamKnob
+                    id="fx.reverb.size"
+                    label="SIZE"
+                    value={patch.reverb.size}
+                    onChange={setParameter}
+                    format={pct}
+                  />
+                  <ParamKnob
+                    id="fx.reverb.decay"
+                    label="DECAY"
+                    value={patch.reverb.decay}
+                    onChange={setParameter}
+                    format={pct}
+                  />
+                  <ParamKnob
+                    id="fx.reverb.preDelay"
+                    label="PRE"
+                    value={patch.reverb.preDelay}
+                    onChange={setParameter}
+                    format={(v) => (v * 1000).toFixed(0)}
+                  />
+                  <ParamKnob
+                    id="fx.reverb.damping"
+                    label="DAMP"
+                    value={patch.reverb.damping}
+                    onChange={setParameter}
+                    format={pct}
+                  />
+                  <ParamKnob
+                    id="fx.reverb.width"
+                    label="WIDTH"
+                    value={patch.reverb.width}
+                    onChange={setParameter}
+                    format={pct}
+                  />
                 </div>
               </div>
             </div>
           </section>
         </div>
 
-        {/* PERFORMANCE AREA — single Keyboard instance, shared by FULL and
-            PLAY. Fully unmounted (no gap) in EDIT; pointer-owned notes are
-            released in switchUiMode before this unmounts.
+        {/* PERFORMANCE AREA — ribbon + keyboard, shared by FULL and PLAY. */}
+        {uiMode !== "editor" &&
+          (() => {
+            const playPortrait = uiMode === "performance" && isPortrait && isNarrow;
+            const fullPortrait = uiMode === "full" && isPortrait && isNarrow;
+            const minKeyWidth =
+              uiMode === "performance" ? (playPortrait ? 34 : 30) : fullPortrait ? 30 : 24;
 
-            Layout rules (documented in REFINEMENT-REPORT.md):
-            · PLAY + phone portrait: vertical stack — compact control bar on
-              top, then horizontal PITCH/MOD strips, then a half-height
-              keyboard (min(15vh,125px)) anchored to the bottom so black keys
-              stay in easy reach. minKeyWidth 34 → wide, comfortable keys.
-            · PLAY otherwise: original side-column layout, minKeyWidth 30.
-            · FULL + phone portrait: shorter keyboard (18vh, 110–170px) with
-              minKeyWidth 30 → wider keys, reduced range, controls above stay
-              usable.
-            · FULL otherwise / desktop: original 26vh strip, minKeyWidth 24.
-            The Keyboard itself measures its container and shows 14, 10 or 7
-            white keys — the widest range that keeps keys ≥ minKeyWidth. */}
-        {uiMode !== "editor" && (() => {
-          const playPortrait = uiMode === "performance" && isPortrait && isNarrow;
-          const fullPortrait = uiMode === "full" && isPortrait && isNarrow;
-          const minKeyWidth =
-            uiMode === "performance" ? (playPortrait ? 34 : 30) : fullPortrait ? 30 : 24;
+            const ribbonLabel = `RIBBON · ${patch.ribbon.mode.toUpperCase()} ±${patch.ribbon.range}`;
+            const ribbonEl = (
+              <Ribbon
+                onMove={handleRibbonMove}
+                onRelease={handleRibbonRelease}
+                label={ribbonLabel}
+                stepped={patch.ribbon.mode === "gliss"}
+                range={patch.ribbon.range}
+              />
+            );
 
-          const bendSelect = (
-            <TxSelect
-              value={settings.bendRangeSemitones}
-              options={BEND_OPTIONS_COMPACT}
-              onChange={(v) => updateSettings({ bendRangeSemitones: v })}
-              className="text-center"
-              style={{ minHeight: 34 }}
-              ariaLabel="Global pitch bend range in semitones"
-            />
-          );
+            const bendSelect = (
+              <TxSelect
+                value={settings.bendRangeSemitones}
+                options={BEND_OPTIONS_COMPACT}
+                onChange={(v) => updateSettings({ bendRangeSemitones: v })}
+                className="text-center"
+                style={{ minHeight: 34 }}
+                ariaLabel="Global pitch bend range in semitones"
+              />
+            );
 
-          const sustainBtn = (extra = "") => (
-            <button
-              className={`tx-btn ${extra} ${sustain ? "tx-btn-active" : ""}`}
-              onPointerDown={() => { setSustain(true); engineRef.current?.setSustain(true); }}
-              onPointerUp={() => { setSustain(false); engineRef.current?.setSustain(false); }}
-              onPointerLeave={() => { if (sustain) { setSustain(false); engineRef.current?.setSustain(false); } }}
-            >SUS</button>
-          );
-
-          return (
-            <div
-              className={`border-t border-black/60 bg-tx-panel-dark px-2 pt-2 pb-2 ${
-                uiMode === "performance" ? "flex-1 min-h-0 flex flex-col" : "shrink-0"
-              }`}
-              style={{ paddingBottom: "max(env(safe-area-inset-bottom), 8px)" }}
-            >
-              {playPortrait ? (
-                /* PLAY · phone portrait — controls in one horizontal bar,
-                   then horizontal PITCH and MOD strips, then the keyboard
-                   anchored to the bottom (thumb zone). Height is roughly half
-                   the old size (was min(30vh,250px)/180) so black keys sit
-                   within easy thumb reach. */
-                <div className="flex-1 min-h-0 flex flex-col gap-2" style={{ minHeight: 200 }}>
-                  <div className="flex gap-1 shrink-0" style={{ height: 44 }}>
-                    <button className="tx-btn flex-1" onClick={() => setOctave((o) => Math.max(1, o - 1))}>OCT −</button>
-                    <div className="tx-lcd-box flex items-center justify-center px-3 text-xs">C{octave}</div>
-                    <button className="tx-btn flex-1" onClick={() => setOctave((o) => Math.min(7, o + 1))}>OCT +</button>
-                    {bendSelect}
-                    {sustainBtn("flex-1")}
-                  </div>
-                  <div className="shrink-0" style={{ height: 40 }}>
-                    <PerfStrip label="PITCH" value={pitchBend} bipolar horizontal onChange={handlePitchChange} onRelease={handlePitchRelease} />
-                  </div>
-                  <div className="shrink-0" style={{ height: 40 }}>
-                    <PerfStrip label="MOD" value={modWheel} horizontal onChange={handleModChange} />
-                  </div>
-                  <div
-                    className="mt-auto shrink-0"
-                    style={{ height: "min(15vh, 125px)", minHeight: 90 }}
-                  >
-                    <Keyboard octave={octave} onNoteOn={noteOn} onNoteOff={noteOff} activeNotes={activeNotes} minKeyWidth={minKeyWidth} />
-                  </div>
-                </div>
-              ) : (
-                <div
-                  className={`flex gap-2 items-stretch ${uiMode === "performance" ? "flex-1 min-h-0" : ""}`}
-                  style={
-                    uiMode === "performance"
-                      ? { minHeight: 170 }
-                      : fullPortrait
-                        ? { height: "18vh", minHeight: 110, maxHeight: 170 }
-                        : { height: "26vh", minHeight: 170, maxHeight: 260 }
+            const sustainBtn = (extra = "") => (
+              <button
+                className={`tx-btn ${extra} ${sustain ? "tx-btn-active" : ""}`}
+                onPointerDown={() => {
+                  setSustain(true);
+                  engineRef.current?.setSustain(true);
+                }}
+                onPointerUp={() => {
+                  setSustain(false);
+                  engineRef.current?.setSustain(false);
+                }}
+                onPointerLeave={() => {
+                  if (sustain) {
+                    setSustain(false);
+                    engineRef.current?.setSustain(false);
                   }
-                >
-                  <div className="flex flex-col gap-1 shrink-0" style={{ width: 44 }}>
-                    <div className="flex-1"><PerfStrip label="PITCH" value={pitchBend} bipolar onChange={handlePitchChange} onRelease={handlePitchRelease} /></div>
-                    <div className="flex-1"><PerfStrip label="MOD" value={modWheel} onChange={handleModChange} /></div>
+                }}
+              >
+                SUS
+              </button>
+            );
+
+            return (
+              <div
+                className={`border-t border-black/60 bg-tx-panel-dark px-2 pt-2 pb-2 ${
+                  uiMode === "performance" ? "flex-1 min-h-0 flex flex-col" : "shrink-0"
+                }`}
+                style={{ paddingBottom: "max(env(safe-area-inset-bottom), 8px)" }}
+              >
+                {playPortrait ? (
+                  <div className="flex-1 min-h-0 flex flex-col gap-2" style={{ minHeight: 230 }}>
+                    <div className="flex gap-1 shrink-0" style={{ height: 44 }}>
+                      <button
+                        className="tx-btn flex-1"
+                        onClick={() => setOctave((o) => Math.max(1, o - 1))}
+                      >
+                        OCT −
+                      </button>
+                      <div className="tx-lcd-box flex items-center justify-center px-3 text-xs">
+                        C{octave}
+                      </div>
+                      <button
+                        className="tx-btn flex-1"
+                        onClick={() => setOctave((o) => Math.min(7, o + 1))}
+                      >
+                        OCT +
+                      </button>
+                      {bendSelect}
+                      {sustainBtn("flex-1")}
+                    </div>
+                    <div className="shrink-0" style={{ height: 36 }}>
+                      <PerfStrip
+                        label="PITCH"
+                        value={pitchBend}
+                        bipolar
+                        horizontal
+                        onChange={handlePitchChange}
+                        onRelease={handlePitchRelease}
+                      />
+                    </div>
+                    <div className="shrink-0" style={{ height: 36 }}>
+                      <PerfStrip
+                        label="MOD"
+                        value={modWheel}
+                        horizontal
+                        onChange={handleModChange}
+                      />
+                    </div>
+                    <div className="shrink-0" style={{ height: 56 }}>
+                      {ribbonEl}
+                    </div>
+                    <div
+                      className="mt-auto shrink-0"
+                      style={{ height: "min(24vh, 220px)", minHeight: 90 }}
+                    >
+                      <Keyboard
+                        octave={octave}
+                        onNoteOn={noteOn}
+                        onNoteOff={noteOff}
+                        activeNotes={activeNotes}
+                        minKeyWidth={minKeyWidth}
+                      />
+                    </div>
                   </div>
-                  {/* Vertical stack: raise on top, lower below — matches how
-                      pitch is spatially reasoned about on hardware. */}
-                  <div className="flex flex-col gap-1 shrink-0" style={{ width: 60 }}>
-                    <button className="tx-btn flex-1" onClick={() => setOctave((o) => Math.min(7, o + 1))}>OCT +</button>
-                    <button className="tx-btn flex-1" onClick={() => setOctave((o) => Math.max(1, o - 1))}>OCT −</button>
-                    <div className="tx-lcd-box text-center py-1 text-xs">C{octave}</div>
-                    {uiMode === "performance" && bendSelect}
-                    {sustainBtn("flex-1")}
+                ) : (
+                  <div
+                    className={`flex flex-col gap-2 ${uiMode === "performance" ? "flex-1 min-h-0" : ""}`}
+                    style={
+                      uiMode === "performance"
+                        ? { minHeight: 210 }
+                        : fullPortrait
+                          ? { height: "24vh", minHeight: 150, maxHeight: 220 }
+                          : { height: "30vh", minHeight: 210, maxHeight: 300 }
+                    }
+                  >
+                    <div className="shrink-0" style={{ height: 40 }}>
+                      {ribbonEl}
+                    </div>
+                    <div className="flex-1 min-h-0 flex gap-2 items-stretch">
+                      <div className="flex flex-col gap-1 shrink-0" style={{ width: 44 }}>
+                        <div className="flex-1">
+                          <PerfStrip
+                            label="PITCH"
+                            value={pitchBend}
+                            bipolar
+                            onChange={handlePitchChange}
+                            onRelease={handlePitchRelease}
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <PerfStrip label="MOD" value={modWheel} onChange={handleModChange} />
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1 shrink-0" style={{ width: 60 }}>
+                        <button
+                          className="tx-btn flex-1"
+                          onClick={() => setOctave((o) => Math.min(7, o + 1))}
+                        >
+                          OCT +
+                        </button>
+                        <button
+                          className="tx-btn flex-1"
+                          onClick={() => setOctave((o) => Math.max(1, o - 1))}
+                        >
+                          OCT −
+                        </button>
+                        <div className="tx-lcd-box text-center py-1 text-xs">C{octave}</div>
+                        {uiMode === "performance" && bendSelect}
+                        {sustainBtn("flex-1")}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <Keyboard
+                          octave={octave}
+                          onNoteOn={noteOn}
+                          onNoteOff={noteOff}
+                          activeNotes={activeNotes}
+                          minKeyWidth={minKeyWidth}
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <Keyboard octave={octave} onNoteOn={noteOn} onNoteOff={noteOff} activeNotes={activeNotes} minKeyWidth={minKeyWidth} />
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })()}
+                )}
+              </div>
+            );
+          })()}
       </main>
 
-      {/* ── PATCH LIBRARY OVERLAY + THEMED DIALOGS ──────────────────────────
-          Dialogs stack above the library (z-80 vs z-60) and are also
-          reachable without it (SAVE AS / REN / DEL in the preset bar).
-          No browser prompt()/confirm()/alert() anywhere. */}
-      {library.libraryOpen && (
-        <PatchLibrary controller={library} isNarrow={isNarrow} isPortrait={isPortrait} />
-      )}
-      {library.dialog.kind === "saveAs" && (
-        <PatchSaveDialog
-          mode="save"
-          defaults={library.saveDefaults}
-          suggestedTags={library.allTags}
-          onSubmit={library.submitSaveAs}
-          onCancel={library.cancelDialog}
+      {/* DIALOGS */}
+      {presets.dialog.kind === "saveAs" && (
+        <Tx80SaveDialog
+          title="SAVE PRESET AS"
+          initialName={presets.unsaved ? patch.name : `${patch.name} 2`}
+          submitLabel="SAVE"
+          onSubmit={presets.submitSaveAs}
+          onCancel={presets.cancelDialog}
         />
       )}
-      {library.dialog.kind === "rename" && (
-        <PatchSaveDialog
-          mode="rename"
-          defaults={{
-            ...library.saveDefaults,
-            name: library.getEntry(library.dialog.id)?.meta.name ?? "",
-          }}
-          suggestedTags={[]}
-          onSubmit={(f) => library.submitRename(f.name)}
-          onCancel={library.cancelDialog}
+      {presets.dialog.kind === "rename" && (
+        <Tx80SaveDialog
+          title="RENAME PRESET"
+          initialName={presets.getEntry(presets.dialog.id)?.name ?? ""}
+          submitLabel="RENAME"
+          onSubmit={presets.submitRename}
+          onCancel={presets.cancelDialog}
         />
       )}
-      {library.dialog.kind === "confirmDelete" && (
+      {presets.dialog.kind === "confirmDelete" && (
         <PatchConfirmDialog
           title="DELETE PRESET"
-          message={`DELETE "${(library.getEntry(library.dialog.id)?.meta.name ?? "").toUpperCase()}"? THIS CANNOT BE UNDONE.`}
-          onCancel={library.cancelDialog}
+          message={`DELETE "${(presets.getEntry(presets.dialog.id)?.name ?? "").toUpperCase()}"? THIS CANNOT BE UNDONE.`}
+          onCancel={presets.cancelDialog}
           actions={[
-            { label: "CANCEL", onSelect: library.cancelDialog },
-            { label: "DELETE", tone: "danger", onSelect: library.confirmDelete },
+            { label: "CANCEL", onSelect: presets.cancelDialog },
+            { label: "DELETE", tone: "danger", onSelect: presets.confirmDelete },
+          ]}
+        />
+      )}
+      {presets.dialog.kind === "confirmDiscard" && (
+        <PatchConfirmDialog
+          title="UNSAVED CHANGES"
+          message={`"${patch.name.toUpperCase()}" HAS UNSAVED CHANGES. LOAD "${(
+            presets.getEntry(presets.dialog.targetId)?.name ?? ""
+          ).toUpperCase()}" ANYWAY?`}
+          onCancel={presets.cancelDialog}
+          actions={[
+            { label: "CANCEL", onSelect: presets.cancelDialog },
+            { label: "DISCARD", tone: "danger", onSelect: presets.confirmDiscard },
           ]}
         />
       )}
       {settingsOpen && (
-        <SettingsDialog
+        <Tx80SetupDialog
           settings={settings}
           onChange={updateSettings}
-          onClose={() => setSettingsOpen(false)}
-        />
-      )}
-      {library.dialog.kind === "confirmDiscard" && (
-        <PatchConfirmDialog
-          title="UNSAVED CHANGES"
-          message={`"${patch.name.toUpperCase()}" HAS UNSAVED CHANGES. LOAD "${(
-            library.getEntry(library.dialog.targetId)?.meta.name ?? ""
-          ).toUpperCase()}" ANYWAY?`}
-          onCancel={library.cancelDialog}
-          actions={[
-            { label: "CANCEL", onSelect: library.cancelDialog },
-            { label: "SAVE AS…", onSelect: library.discardToSaveAs },
-            { label: "DISCARD", tone: "danger", onSelect: library.confirmDiscard },
-          ]}
+          midiStatus={midiStatus}
+          onEnableMidi={enableMidi}
+          onDisableMidi={disableMidi}
+          storageOk={presets.storageOk}
+          onClose={() => {
+            setSettingsOpen(false);
+            setupBtnRef.current?.focus();
+          }}
         />
       )}
     </div>
@@ -1376,21 +1475,26 @@ function PanelTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
-function MeterBar({ value }: { value: number }) {
-  const segs = 8;
+function MeterBar({ value, wide = false }: { value: number; wide?: boolean }) {
+  const segs = wide ? 16 : 8;
   const on = Math.round(value * segs * 1.4);
   return (
-    <div className="flex gap-[2px] shrink-0">
+    <div className={`flex gap-[2px] ${wide ? "w-full" : "shrink-0"}`}>
       {Array.from({ length: segs }).map((_, i) => {
         const active = i < on;
         const isHigh = i >= segs - 2;
         return (
           <div
             key={i}
+            className={wide ? "flex-1" : ""}
             style={{
-              width: 3,
+              width: wide ? undefined : 3,
               height: 14,
-              background: active ? (isHigh ? "var(--tx-red)" : "var(--tx-lcd)") : "rgba(255,255,255,0.06)",
+              background: active
+                ? isHigh
+                  ? "var(--tx-red)"
+                  : "var(--tx-lcd)"
+                : "rgba(255,255,255,0.06)",
               boxShadow: active ? `0 0 4px ${isHigh ? "var(--tx-red)" : "var(--tx-lcd)"}` : "none",
               borderRadius: 1,
             }}
@@ -1399,44 +1503,4 @@ function MeterBar({ value }: { value: number }) {
       })}
     </div>
   );
-}
-
-function OperatorEditor({
-  op,
-  opIndex,
-  onChange,
-}: {
-  op: Patch["operators"][number];
-  opIndex: number;
-  onChange: (o: Partial<Patch["operators"][number]>) => void;
-}) {
-  return (
-    <div>
-      <div className="flex gap-1 mb-2 items-center">
-        <div className="text-[9px] tracking-[0.3em] text-tx-muted flex-1">
-          OP{opIndex + 1} · THIS OPERATOR ONLY
-        </div>
-        <button
-          className={`tx-btn ${op.enabled ? "tx-btn-active" : ""}`}
-          onClick={() => onChange({ enabled: !op.enabled })}
-        >{op.enabled ? "ON" : "MUTE"}</button>
-      </div>
-      <div className="grid grid-cols-4 gap-2">
-        <Knob label="RATIO" value={op.ratio} min={0.25} max={16} step={0.01} onChange={(v) => onChange({ ratio: v })} format={(v) => v.toFixed(2)} />
-        <Knob label="DETUNE" value={op.detune} min={-50} max={50} step={0.5} onChange={(v) => onChange({ detune: v })} format={(v) => v.toFixed(0)} />
-        <Knob label="LEVEL" value={op.level} min={0} max={1} onChange={(v) => onChange({ level: v })} format={(v) => (v * 100).toFixed(0)} />
-        <Knob label="ATK" value={op.attack} min={0.001} max={4} onChange={(v) => onChange({ attack: v })} format={(v) => v.toFixed(2)} />
-        <Knob label="DEC" value={op.decay} min={0.01} max={4} onChange={(v) => onChange({ decay: v })} format={(v) => v.toFixed(2)} />
-        <Knob label="SUS" value={op.sustain} min={0} max={1} onChange={(v) => onChange({ sustain: v })} format={(v) => (v * 100).toFixed(0)} />
-        <Knob label="REL" value={op.release} min={0.01} max={4} onChange={(v) => onChange({ release: v })} format={(v) => v.toFixed(2)} />
-      </div>
-    </div>
-  );
-}
-
-function ageLabel(age: number): string {
-  if (age <= 0.25) return "NEW OLD STOCK";
-  if (age <= 0.6) return "CLASSIC DIGITAL";
-  if (age <= 0.85) return "WELL USED";
-  return "WORN MEMORY";
 }

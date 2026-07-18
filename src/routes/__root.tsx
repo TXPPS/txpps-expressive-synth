@@ -24,7 +24,7 @@ function NotFoundComponent() {
             to="/"
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
           >
-            Return to TX27
+            Return to TX-80
           </Link>
         </div>
       </div>
@@ -68,25 +68,25 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content:
           "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover",
       },
-      { title: "TXPPS TX27 — Mobile FM Synthesizer" },
+      { title: "TXPPS TX-80 — Dual-Layer Performance Synthesizer" },
       {
         name: "description",
         content:
-          "TXPPS TX27 is a mobile four-operator FM synthesizer with the Vintage Circuit — digital FM with a living edge.",
+          "TXPPS TX-80 is a dual-layer expressive performance synthesizer with ribbon controller, portamento and true glissando.",
       },
       { name: "author", content: "TXPPS" },
-      { property: "og:title", content: "TXPPS TX27 — Mobile FM Synthesizer" },
+      { property: "og:title", content: "TXPPS TX-80 — Dual-Layer Performance Synthesizer" },
       {
         property: "og:description",
-        content: "Four-operator FM, six algorithms, Vintage Circuit AGE macro.",
+        content: "Two independent synthesis layers, ribbon, dual LFOs, chorus, delay and reverb.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       // PWA / mobile metadata
-      { name: "theme-color", content: "#1a1815" },
+      { name: "theme-color", content: "#171512" },
       { name: "mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
-      { name: "apple-mobile-web-app-title", content: "TX27" },
+      { name: "apple-mobile-web-app-title", content: "TX-80" },
       { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
     ],
     links: [

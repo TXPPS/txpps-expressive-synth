@@ -1,13 +1,13 @@
 {
-  "name": "TXPPS TX27",
-  "short_name": "TX27",
-  "description": "Mobile four-operator FM synthesizer with vintage digital character.",
+  "name": "TXPPS TX-80",
+  "short_name": "TX-80",
+  "description": "Dual-layer expressive performance synthesizer with ribbon controller, portamento and glissando.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
-  "theme_color": "#1a1815",
-  "background_color": "#1a1815",
+  "theme_color": "#171512",
+  "background_color": "#171512",
   "categories": ["music", "entertainment"],
   "icons": [
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },

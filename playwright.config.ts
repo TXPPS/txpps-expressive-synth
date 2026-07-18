@@ -15,6 +15,11 @@ import { defineConfig, devices } from "@playwright/test";
 const PORT = 8788;
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 
+// Optional Chromium executable override for sandboxed CI environments that
+// pre-install a pinned browser (e.g. PLAYWRIGHT_CHROMIUM_EXECUTABLE=
+// /opt/pw-browsers/chromium). Unset locally — the default download is used.
+const chromiumExecutable = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE;
+
 export default defineConfig({
   testDir: "./tests/e2e",
   testMatch: "**/*.e2e.ts",
@@ -30,7 +35,10 @@ export default defineConfig({
     // A real click supplies user activation, so the default (gesture-gated)
     // autoplay policy is kept — this validates genuine gesture-driven audio
     // startup rather than papering over it.
-    launchOptions: { args: ["--mute-audio"] },
+    launchOptions: {
+      args: ["--mute-audio"],
+      ...(chromiumExecutable ? { executablePath: chromiumExecutable } : {}),
+    },
   },
   webServer: {
     command: `bunx wrangler dev -c .output/server/wrangler.json --port ${PORT} --ip 127.0.0.1`,
@@ -44,7 +52,12 @@ export default defineConfig({
     {
       name: "chromium-desktop",
       use: { ...devices["Desktop Chrome"] },
-      testMatch: ["**/lifecycle.e2e.ts", "**/preset-state.e2e.ts", "**/offline-pwa.e2e.ts"],
+      testMatch: [
+        "**/lifecycle.e2e.ts",
+        "**/preset-state.e2e.ts",
+        "**/offline-pwa.e2e.ts",
+        "**/tx80-engine.e2e.ts",
+      ],
     },
     {
       name: "edge-desktop",
