@@ -10,6 +10,7 @@ import { PerformanceStrip } from "@/components/synth/PerformanceStrip";
 import { Ribbon } from "@/components/synth/Ribbon";
 import { Keyboard } from "@/components/synth/Keyboard";
 import { useSynthStore } from "@/state/store";
+import { useAudioEngine } from "@/hooks/useAudioEngine";
 
 export const Route = createFileRoute("/")({
   component: TX80Panel,
@@ -18,6 +19,7 @@ export const Route = createFileRoute("/")({
 function TX80Panel() {
   const audioStatus = useSynthStore((s) => s.audioStatus);
   const setAudioStatus = useSynthStore((s) => s.setAudioStatus);
+  const { initialize, handleNoteOn, handleNoteOff } = useAudioEngine();
 
   // TEMP M1: mark the audio subsystem "idle → ready" via a click gesture on
   // the enable-audio pill. Full AudioContext lifecycle lands in Milestone 2.
@@ -25,10 +27,7 @@ function TX80Panel() {
 
   const enableAudio = () => {
     if (audioStatus === "running") return;
-    setAudioStatus("starting");
-    // Placeholder for M1: pretend startup succeeded so the shell reports READY.
-    // M2 replaces this with real AudioContext.resume().
-    setTimeout(() => setAudioStatus("running"), 120);
+    initialize();
   };
 
   return (
@@ -64,12 +63,12 @@ function TX80Panel() {
         <PerformanceStrip />
         <div className="flex-1 min-w-0 flex flex-col gap-2">
           <Ribbon />
-          <Keyboard />
+          <Keyboard onNoteOn={handleNoteOn} onNoteOff={handleNoteOff} />
         </div>
       </section>
 
       <div className="silkscreen text-center py-1.5 border-t border-[color:var(--hairline)] safe-b">
-        TXPPS TX-80 · Milestone 1 · responsive shell — audio engine wires in M2
+        TXPPS TX-80 · Milestone 2 · audio engine + voice manager
       </div>
 
       {/* Responsive rearrangement via inline media queries in a style tag.
