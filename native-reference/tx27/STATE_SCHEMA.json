@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "txpps.tx27.state.v1",
+  "title": "TXPPS TX27 State Boundaries",
+  "status": "Documented",
+  "type": "object",
+  "required": ["patch", "settings"],
+  "properties": {
+    "patch": {
+      "description": "Product DSP state; validated by sanitizeImportedPatch and PARAMETER_CONTRACT.json",
+      "type": "object",
+      "required": ["name", "algorithm", "operators", "glideMode"],
+      "properties": {
+        "name": { "type": "string", "maxLength": 24 },
+        "algorithm": { "type": "integer", "minimum": 1, "maximum": 6 },
+        "operators": { "type": "array", "minItems": 4, "maxItems": 4 },
+        "glideMode": { "enum": ["off", "poly", "mono"] }
+      },
+      "additionalProperties": true
+    },
+    "settings": {
+      "description": "Application/global settings; never part of DSP preset automation",
+      "type": "object",
+      "required": ["bendRangeSemitones", "confirmPresetChange"],
+      "properties": {
+        "bendRangeSemitones": { "type": "integer", "minimum": 1, "maximum": 12 },
+        "confirmPresetChange": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "storageKeys": {
+    "settings": "tx27-settings",
+    "userLibrary": "tx27.userLibrary.v2",
+    "legacyPatches": "tx27.userPatches.v1",
+    "uiMode": "tx27-ui-mode"
+  }
+}

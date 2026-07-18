@@ -1,0 +1,73 @@
+{
+  "contractId": "txpps.tx27.parameters.v1",
+  "productId": "txpps.tx27",
+  "status": "Verified",
+  "sourceRegistry": "src/lib/tx27/parameters.ts",
+  "valueTypes": ["number", "string", "boolean"],
+  "idRules": {
+    "stable": true,
+    "derivedFromLabels": false,
+    "separator": ".",
+    "juceApvtsCandidate": true
+  },
+  "operatorTemplate": {
+    "instances": ["op1", "op2", "op3", "op4"],
+    "instanceDefaults": {
+      "op1": { "ratio": 1, "level": 0.9 },
+      "op2": { "ratio": 2, "level": 0.6 },
+      "op3": { "ratio": 1, "level": 0.5 },
+      "op4": { "ratio": 3, "level": 0.4 }
+    },
+    "fields": {
+      "ratio": { "minimum": 0.25, "maximum": 16, "step": 0.01, "unit": "ratio" },
+      "detune": { "minimum": -50, "maximum": 50, "step": 0.5, "unit": "cent" },
+      "level": { "minimum": 0, "maximum": 1, "step": 0.001 },
+      "attack": { "minimum": 0.001, "maximum": 4, "step": 0.001, "unit": "s" },
+      "decay": { "minimum": 0.01, "maximum": 4, "step": 0.001, "unit": "s" },
+      "sustain": { "minimum": 0, "maximum": 1, "step": 0.001 },
+      "release": { "minimum": 0.01, "maximum": 4, "step": 0.001, "unit": "s" },
+      "enabled": { "choices": [false, true] }
+    }
+  },
+  "parameters": {
+    "algo": { "choices": [1, 2, 3, 4, 5, 6], "defaultValue": 1 },
+    "fm.depth": { "minimum": 0, "maximum": 1, "defaultValue": 0.6 },
+    "fm.feedback": { "minimum": 0, "maximum": 0.85, "defaultValue": 0.15 },
+    "velocity.sensitivity": { "minimum": 0, "maximum": 1, "defaultValue": 0.5 },
+    "voice.mode": { "choices": ["poly", "mono"], "defaultValue": "poly" },
+    "voice.polyphony": { "choices": [4, 8, 12], "defaultValue": 8 },
+    "glide.time": { "minimum": 0, "maximum": 0.5, "defaultValue": 0.05, "unit": "s" },
+    "glide.mode": { "choices": ["off", "poly", "mono"], "defaultValue": "off" },
+    "envelope.masterAttack": { "minimum": 0, "maximum": 1, "defaultValue": 0, "unit": "s" },
+    "envelope.masterRelease": { "minimum": 0, "maximum": 4, "defaultValue": 0, "unit": "s" },
+    "filter.cutoff": { "minimum": 20, "maximum": 20000, "defaultValue": 12000, "unit": "Hz" },
+    "filter.resonance": { "minimum": 0, "maximum": 1, "defaultValue": 0.4 },
+    "fx.chorus.enabled": { "choices": [false, true], "defaultValue": false },
+    "fx.chorus.amount": { "minimum": 0, "maximum": 1, "defaultValue": 0.4 },
+    "fx.chorus.rate": { "minimum": 0.05, "maximum": 8, "defaultValue": 0.6, "unit": "Hz" },
+    "fx.chorus.depth": { "minimum": 0, "maximum": 0.01, "defaultValue": 0.003, "unit": "s" },
+    "fx.delay.enabled": { "choices": [false, true], "defaultValue": false },
+    "fx.delay.time": { "minimum": 0.02, "maximum": 1.2, "defaultValue": 0.32, "unit": "s" },
+    "fx.delay.feedback": { "minimum": 0, "maximum": 0.85, "defaultValue": 0.35 },
+    "fx.delay.mix": { "minimum": 0, "maximum": 1, "defaultValue": 0.25 },
+    "fx.reverb.enabled": { "choices": [false, true], "defaultValue": true },
+    "fx.reverb.type": { "choices": ["digital", "hall", "glass"], "defaultValue": "hall" },
+    "fx.reverb.mix": { "minimum": 0, "maximum": 1, "defaultValue": 0.28 },
+    "fx.reverb.size": { "minimum": 0, "maximum": 1, "defaultValue": 0.6 },
+    "fx.reverb.decay": { "minimum": 0, "maximum": 1, "defaultValue": 0.6 },
+    "fx.reverb.preDelay": { "minimum": 0, "maximum": 0.2, "defaultValue": 0.02, "unit": "s" },
+    "fx.reverb.damping": { "minimum": 0, "maximum": 1, "defaultValue": 0.5 },
+    "fx.reverb.width": { "minimum": 0, "maximum": 1, "defaultValue": 0.9 },
+    "vintage.enabled": { "choices": [false, true], "defaultValue": false },
+    "vintage.age": { "minimum": 0, "maximum": 1, "defaultValue": 0.35 },
+    "vintage.warmth": { "minimum": 0, "maximum": 1, "defaultValue": 0.5 },
+    "vintage.grain": { "minimum": 0, "maximum": 1, "defaultValue": 0.3 },
+    "vintage.wear": { "minimum": 0, "maximum": 1, "defaultValue": 0.3 },
+    "vintage.drift": { "minimum": 0, "maximum": 1, "defaultValue": 0.3 },
+    "vintage.noise": { "minimum": 0, "maximum": 1, "defaultValue": 0.25 },
+    "vintage.stereoAge": { "minimum": 0, "maximum": 1, "defaultValue": 0.3 },
+    "vintage.drive": { "minimum": 0, "maximum": 1, "defaultValue": 0.4 },
+    "master.volume": { "minimum": 0, "maximum": 1, "defaultValue": 0.7 }
+  },
+  "excludedAppSettings": ["bendRangeSemitones", "confirmPresetChange"]
+}

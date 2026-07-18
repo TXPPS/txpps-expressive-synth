@@ -1,0 +1,286 @@
+@import "tailwindcss" source(none);
+
+/* Self-hosted JetBrains Mono (variable weight file) — no runtime dependency
+   on Google Fonts, so the synth works fully offline once cached. */
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("/fonts/JetBrainsMono.woff2") format("woff2");
+}
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-tx-panel: var(--tx-panel);
+  --color-tx-panel-dark: var(--tx-panel-dark);
+  --color-tx-cream: var(--tx-cream);
+  --color-tx-lcd: var(--tx-lcd);
+  --color-tx-lcd-dim: var(--tx-lcd-dim);
+  --color-tx-accent: var(--tx-accent);
+  --color-tx-accent-dim: var(--tx-accent-dim);
+  --color-tx-muted: var(--tx-muted);
+  --color-tx-red: var(--tx-red);
+  --font-display: "JetBrains Mono", ui-monospace, monospace;
+}
+
+:root {
+  --radius: 0.5rem;
+  --background: oklch(0.18 0.006 80);
+  --foreground: oklch(0.92 0.02 85);
+  --card: oklch(0.22 0.006 80);
+  --card-foreground: oklch(0.92 0.02 85);
+  --primary: oklch(0.78 0.16 145);
+  --primary-foreground: oklch(0.15 0.01 80);
+  --secondary: oklch(0.28 0.006 80);
+  --secondary-foreground: oklch(0.92 0.02 85);
+  --muted: oklch(0.26 0.006 80);
+  --muted-foreground: oklch(0.65 0.01 80);
+  --accent: oklch(0.78 0.16 145);
+  --accent-foreground: oklch(0.15 0.01 80);
+  --border: oklch(0.32 0.008 80);
+
+  /* TX27 palette */
+  --tx-panel: #2a2724;
+  --tx-panel-dark: #1a1815;
+  --tx-cream: #d9d3b8;
+  --tx-lcd: #7cff9c; /* green LCD */
+  --tx-lcd-dim: #2a5a37;
+  --tx-accent: #7cff9c;
+  --tx-accent-dim: rgba(124, 255, 156, 0.18);
+  --tx-muted: #85807a;
+  --tx-red: #ff5555;
+}
+
+.vintage-active {
+  --tx-lcd: #f5c065; /* amber shift when vintage circuit on */
+  --tx-lcd-dim: #5a3f1a;
+  --tx-accent: #f5c065;
+  --tx-accent-dim: rgba(245, 192, 101, 0.18);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+    overscroll-behavior: none;
+  }
+  body {
+    background: var(--tx-panel-dark);
+    color: var(--color-foreground);
+    font-family: var(--font-display);
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+
+@utility tx-panel {
+  background:
+    linear-gradient(180deg, #302c29 0%, #24211e 100%);
+  border: 1px solid #3a3733;
+  border-radius: 8px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+@utility tx-lcd-box {
+  background:
+    linear-gradient(180deg, #0a1a10 0%, #050f08 100%);
+  border: 1px solid #1a2a1e;
+  border-radius: 4px;
+  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.7),
+    inset 0 0 2px var(--tx-lcd-dim);
+  color: var(--tx-lcd);
+  text-shadow: 0 0 6px var(--tx-lcd);
+  font-family: var(--font-display);
+}
+
+@utility tx-btn {
+  background: linear-gradient(180deg, #3a3733 0%, #201d1a 100%);
+  border: 1px solid #4a4640;
+  border-radius: 4px;
+  color: var(--tx-cream);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 8px 10px;
+  min-height: 36px;
+  transition: all 0.08s ease;
+  cursor: pointer;
+  font-family: var(--font-display);
+}
+@utility tx-btn-active {
+  background: linear-gradient(180deg, var(--tx-accent-dim) 0%, #1a1a17 100%);
+  color: var(--tx-lcd);
+  border-color: var(--tx-lcd-dim);
+  box-shadow: 0 0 10px var(--tx-accent-dim), inset 0 0 6px var(--tx-accent-dim);
+}
+
+/* Themed native <select> — same chassis chrome as tx-btn plus a cream
+   chevron (cream stays legible in both green and amber vintage themes).
+   Self-contained so it never depends on utility emit order vs tx-btn. */
+@utility tx-select {
+  -webkit-appearance: none;
+  appearance: none;
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%23d9d3b8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>"),
+    linear-gradient(180deg, #3a3733 0%, #201d1a 100%);
+  background-repeat: no-repeat;
+  background-position:
+    right 7px center,
+    0 0;
+  background-size:
+    10px 6px,
+    auto;
+  border: 1px solid #4a4640;
+  border-radius: 4px;
+  color: var(--tx-cream);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 8px 22px 8px 10px;
+  min-height: 36px;
+  transition: all 0.08s ease;
+  cursor: pointer;
+  font-family: var(--font-display);
+}
+
+/* Native range input (AGE macro slider) — recessed dark track with a
+   fader-style cap carrying a phosphor centre line. */
+.tx-range {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+.tx-range::-webkit-slider-runnable-track {
+  height: 10px;
+  border-radius: 5px;
+  background: linear-gradient(180deg, #0c0b09 0%, #17150f 100%);
+  border: 1px solid #3a3733;
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.6);
+}
+.tx-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 26px;
+  height: 24px;
+  margin-top: -7px;
+  border-radius: 4px;
+  background:
+    linear-gradient(90deg, transparent 44%, var(--tx-lcd) 44%, var(--tx-lcd) 56%, transparent 56%),
+    linear-gradient(180deg, #3a3733 0%, #201d1a 100%);
+  border: 1px solid #4a4640;
+  box-shadow:
+    0 2px 5px rgba(0, 0, 0, 0.5),
+    0 0 6px var(--tx-accent-dim);
+}
+.tx-range::-moz-range-track {
+  height: 10px;
+  border-radius: 5px;
+  background: linear-gradient(180deg, #0c0b09 0%, #17150f 100%);
+  border: 1px solid #3a3733;
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.6);
+}
+.tx-range::-moz-range-thumb {
+  width: 24px;
+  height: 22px;
+  border-radius: 4px;
+  background:
+    linear-gradient(90deg, transparent 44%, var(--tx-lcd) 44%, var(--tx-lcd) 56%, transparent 56%),
+    linear-gradient(180deg, #3a3733 0%, #201d1a 100%);
+  border: 1px solid #4a4640;
+  box-shadow:
+    0 2px 5px rgba(0, 0, 0, 0.5),
+    0 0 6px var(--tx-accent-dim);
+}
+
+/* Algorithm map live-activity glow (class set by AlgorithmView when the
+   synth is powered and at least one note is sounding). */
+.algo-svg .algo-carrier,
+.algo-svg .algo-bus,
+.algo-svg .algo-drop {
+  transition:
+    filter 0.25s ease,
+    opacity 0.25s ease;
+}
+.algo-svg .algo-drop {
+  opacity: 0.75;
+}
+.algo-svg.algo-live .algo-carrier {
+  filter: drop-shadow(0 0 3px var(--tx-accent));
+}
+.algo-svg.algo-live .algo-bus,
+.algo-svg.algo-live .algo-drop {
+  filter: drop-shadow(0 0 2px var(--tx-accent));
+  opacity: 1;
+}
+
+@layer base {
+  /* Dropdown option lists inherit the instrument's dark palette instead of
+     the white browser default. */
+  select option {
+    background-color: #1a1815;
+    color: var(--tx-cream);
+  }
+
+  /* Keyboard-focus indicator in instrument phosphor — replaces the default
+     browser ring everywhere (buttons, selects, inputs, sliders). */
+  :focus-visible {
+    outline: 1px solid var(--tx-lcd);
+    outline-offset: 2px;
+  }
+
+  /* Themed scrollbars — no stock white/grey bars anywhere.
+     Firefox */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #3d5a45 #12100d;
+  }
+  /* WebKit/Blink */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #12100d;
+    border-radius: 5px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #35503d 0%, #22352a 100%);
+    border-radius: 5px;
+    border: 2px solid #12100d;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #446752;
+  }
+  ::-webkit-scrollbar-corner {
+    background: #12100d;
+  }
+}

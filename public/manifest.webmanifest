@@ -1,0 +1,17 @@
+{
+  "name": "TXPPS TX27",
+  "short_name": "TX27",
+  "description": "Mobile four-operator FM synthesizer with vintage digital character.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#1a1815",
+  "background_color": "#1a1815",
+  "categories": ["music", "entertainment"],
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
