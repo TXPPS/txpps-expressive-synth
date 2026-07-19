@@ -12,4 +12,11 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  vite: {
+    server: {
+      // Bind IPv4 explicitly — the default dual-stack listen fails with
+      // EAFNOSUPPORT on IPv6-less hosts (CI containers, some sandboxes).
+      host: "0.0.0.0",
+    },
+  },
 });
