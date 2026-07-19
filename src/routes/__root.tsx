@@ -10,7 +10,12 @@ import {
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
-import { reportLovableError } from "../lib/lovable-error-reporting";
+import { reportRuntimeError } from "../lib/runtime-error-reporting";
+
+const APP_NAME = "TXPPS TX-80";
+const APP_DESCRIPTION =
+  "TXPPS TX-80 is an original expressive dual-layer polyphonic web synthesizer with ribbon control, portamento, glissando, and preset recall.";
+const THEME_COLOR = "#1a1a17";
 
 function NotFoundComponent() {
   return (
@@ -39,7 +44,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
   useEffect(() => {
-    reportLovableError(error, { boundary: "tanstack_root_error_component" });
+    reportRuntimeError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
 
   return (
@@ -77,30 +82,36 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
-      { name: "theme-color", content: "#1a1a17" },
-      { title: "TXPPS TX-80 — Dual-Layer Web Synthesizer" },
-      {
-        name: "description",
-        content:
-          "TXPPS TX-80 is an original expressive dual-layer polyphonic web synthesizer with ribbon control, portamento, glissando, and preset recall.",
-      },
+      { name: "theme-color", content: THEME_COLOR },
+      { name: "msapplication-TileColor", content: THEME_COLOR },
+      { name: "application-name", content: APP_NAME },
+      { name: "apple-mobile-web-app-title", content: "TX-80" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "mobile-web-app-capable", content: "yes" },
+      { title: APP_NAME },
+      { name: "description", content: APP_DESCRIPTION },
       { name: "author", content: "TXPPS" },
-      { property: "og:title", content: "TXPPS TX-80 — Dual-Layer Web Synthesizer" },
-      {
-        property: "og:description",
-        content:
-          "Play a real polyphonic web synthesizer: two independent layers, ribbon controller, portamento & glissando, presets, MIDI.",
-      },
+      { property: "og:title", content: APP_NAME },
+      { property: "og:description", content: APP_DESCRIPTION },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
+      { property: "og:site_name", content: APP_NAME },
+      { property: "og:image", content: "/icons/icon-512.png" },
+      { name: "twitter:card", content: "summary" },
+      { name: "twitter:title", content: APP_NAME },
+      { name: "twitter:description", content: APP_DESCRIPTION },
+      { name: "twitter:image", content: "/icons/icon-512.png" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
-      {
-        rel: "preconnect",
-        href: "https://fonts.googleapis.com",
-      },
+      { rel: "manifest", href: "/site.webmanifest" },
+      { rel: "icon", href: "/favicon.ico", sizes: "any" },
+      { rel: "icon", type: "image/png", sizes: "16x16", href: "/favicon-16x16.png" },
+      { rel: "icon", type: "image/png", sizes: "32x32", href: "/favicon-32x32.png" },
+      { rel: "icon", type: "image/png", sizes: "48x48", href: "/favicon-48x48.png" },
+      { rel: "icon", type: "image/svg+xml", href: "/icons/icon.svg" },
+      { rel: "apple-touch-icon", sizes: "180x180", href: "/apple-touch-icon.png" },
+      { rel: "mask-icon", href: "/safari-pinned-tab.svg", color: "#7dff9a" },
+      { rel: "preconnect", href: "https://fonts.googleapis.com" },
       {
         rel: "preconnect",
         href: "https://fonts.gstatic.com",

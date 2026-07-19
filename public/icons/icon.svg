@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="TXPPS TX-80">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#22211c"/>
+      <stop offset="100%" stop-color="#141410"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <text x="256" y="168" text-anchor="middle" font-family="Inter Tight, Arial, sans-serif" font-size="72" font-weight="600" letter-spacing="8" fill="#d9d2c4">TX</text>
+  <text x="256" y="340" text-anchor="middle" font-family="Inter Tight, Arial Black, sans-serif" font-size="220" font-weight="800" fill="#7dff9a">80</text>
+  <rect x="140" y="390" width="232" height="18" rx="9" fill="#ffb454"/>
+</svg>
