@@ -22,13 +22,7 @@ export function PerformanceStrip() {
         />
       </WheelColumn>
       <WheelColumn label="MOD">
-        <VerticalStrip
-          label="MOD"
-          value={modWheel}
-          min={0}
-          max={1}
-          onChange={setModWheel}
-        />
+        <VerticalStrip label="MOD" value={modWheel} min={0} max={1} onChange={setModWheel} />
       </WheelColumn>
     </div>
   );
@@ -67,7 +61,7 @@ function VerticalStrip({
   return (
     <div
       ref={ref}
-      className="panel-sunken relative w-9 sm:w-11 h-[4.5rem] sm:h-28 rounded-md flex flex-col items-center justify-end select-none touch-none"
+      className="panel-sunken relative w-9 sm:w-11 h-[4.5rem] sm:h-28 rounded-md flex flex-col items-center justify-end select-none touch-none tx80-perf-surface"
       onPointerDown={(e) => {
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
         const rect = e.currentTarget.getBoundingClientRect();

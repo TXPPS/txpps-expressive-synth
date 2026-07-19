@@ -5,6 +5,18 @@ Approved scope: replace the live audio path with the transplanted
 synth-core runtime behind the existing UI/state; no visual or state-
 architecture changes.
 
+## Follow-on (same branch) — interaction lock + diagnostics
+
+After runtime switchover, Gate 2 UI completion and branding, this branch
+adds:
+
+- Instrument selection lock (CSS) with diagnostic-terminal exception
+- SETTINGS dialog + TXPPS diagnostic terminal
+- Control connection audit document
+- Public preview: https://txpps-tx-80.toppsmusicproductions.workers.dev/
+
+See `docs/TX80_DIAGNOSTIC_TERMINAL.md` and `docs/TX80_CONTROL_CONNECTION_AUDIT.md`.
+
 ## Old live path (retired at this gate)
 
 `Keyboard.tsx` → `useAudioEngine` → `getAudioEngine()` (`src/audio/engine.ts`

@@ -346,7 +346,7 @@ test("polyphony cap steals oldest; releasing the stolen press harms nothing", as
 // ── 15 · Sustain with repeated notes ───────────────────────────────────────
 test("sustain holds repeated releases; pedal-up silences", async ({ page }) => {
   await warmUp(page);
-  const sus = page.getByRole("button", { name: "SUS", exact: true });
+  const sus = page.getByRole("button", { name: /sustain/i });
   await sus.click();
   await expect(sus).toHaveAttribute("aria-pressed", "true");
   await mousePress(page, 60, 60);

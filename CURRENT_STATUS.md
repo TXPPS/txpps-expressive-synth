@@ -1,9 +1,17 @@
 # TXPPS TX-80 — Current Status
 
-**Phase**: Reconciliation Gate 2 complete (authoritative runtime
-switchover). Roadmap: `docs/TX80_NEXT_ROADMAP.md`; audit:
-`docs/TX80_DUAL_IMPLEMENTATION_AUDIT.md`.
-**Last update**: Gate 2 (2026-07-19)
+**Phase**: Gate 2 UI functional completion + interaction lock + diagnostics.
+**Last update**: 2026-07-19
+
+## Latest — performance lock + diagnostics (COMPLETE)
+
+- Instrument-wide `user-select: none` with diagnostic terminal opt-in
+- SETTINGS modal (SYSTEM / AUDIO / MIDI disabled / DIAGNOSTICS / ABOUT)
+- Bounded diagnostic event buffer (256) + build SHA injection
+- Ribbon retest: pitch / glissando / hold; trigger remains disabled
+- Control audit: `docs/TX80_CONTROL_CONNECTION_AUDIT.md`
+- Terminal docs: `docs/TX80_DIAGNOSTIC_TERMINAL.md`
+- Preview: https://txpps-tx-80.toppsmusicproductions.workers.dev/
 
 ## Gate 2 — runtime switchover and voice ownership (COMPLETE, automated)
 

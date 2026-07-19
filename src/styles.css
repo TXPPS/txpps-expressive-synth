@@ -87,12 +87,11 @@
   --radius: 8px;
 
   /* Signature textures / shadows */
-  --enclosure-grain:
-    repeating-linear-gradient(
-      100deg,
-      transparent 0 3px,
-      color-mix(in oklab, black 6%, transparent) 3px 4px
-    );
+  --enclosure-grain: repeating-linear-gradient(
+    100deg,
+    transparent 0 3px,
+    color-mix(in oklab, black 6%, transparent) 3px 4px
+  );
   --panel-shadow:
     inset 0 1px 0 color-mix(in oklab, white 4%, transparent),
     inset 0 -1px 0 color-mix(in oklab, black 25%, transparent),
@@ -105,8 +104,14 @@
 }
 
 @layer base {
-  * { border-color: var(--color-hairline); }
-  html, body, #root { height: 100%; }
+  * {
+    border-color: var(--color-hairline);
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
   body {
     background: var(--background);
     color: var(--foreground);
@@ -116,9 +121,40 @@
     text-rendering: optimizeLegibility;
     overscroll-behavior: none;
     touch-action: manipulation;
+    /* Instrument shell: no accidental text selection / callouts */
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
   }
   /* App must never require horizontal scroll */
-  html, body { overflow-x: hidden; }
+  html,
+  body {
+    overflow-x: hidden;
+  }
+
+  /* Typing fields remain editable/selectable */
+  input:not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  [contenteditable="true"] {
+    -webkit-user-select: text;
+    user-select: text;
+    -webkit-touch-callout: default;
+  }
+
+  /* Diagnostic terminal is the only general copy/select region */
+  .tx80-diag-terminal,
+  .tx80-diag-terminal * {
+    -webkit-user-select: text !important;
+    user-select: text !important;
+    -webkit-touch-callout: default;
+  }
+
+  /* Performance surfaces: pan-y allowed for page scroll outside capture */
+  .tx80-perf-surface {
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
 }
 
 @utility silkscreen {
@@ -146,7 +182,9 @@
   background:
     radial-gradient(120% 100% at 50% -20%, oklch(0.28 0.01 95) 0%, transparent 60%),
     var(--background);
-  background-image: var(--enclosure-grain), radial-gradient(120% 100% at 50% -20%, oklch(0.28 0.01 95) 0%, transparent 60%);
+  background-image:
+    var(--enclosure-grain),
+    radial-gradient(120% 100% at 50% -20%, oklch(0.28 0.01 95) 0%, transparent 60%);
   background-blend-mode: overlay, normal;
 }
 
@@ -164,23 +202,30 @@
 }
 
 @utility led {
-  width: 6px; height: 6px; border-radius: 999px;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
   background: var(--phosphor);
   box-shadow: var(--led-glow);
 }
 @utility led-amber {
-  width: 6px; height: 6px; border-radius: 999px;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
   background: var(--amber);
   box-shadow: var(--led-amber-glow);
 }
 @utility led-off {
-  width: 6px; height: 6px; border-radius: 999px;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
   background: color-mix(in oklab, var(--phosphor) 20%, black);
 }
 
 @utility placeholder-tag {
   position: absolute;
-  top: 6px; right: 6px;
+  top: 6px;
+  right: 6px;
   font-family: var(--font-mono);
   font-size: 0.55rem;
   letter-spacing: 0.15em;
@@ -193,5 +238,9 @@
 }
 
 /* Safe-area helper */
-@utility safe-b { padding-bottom: env(safe-area-inset-bottom); }
-@utility safe-t { padding-top: env(safe-area-inset-top); }
+@utility safe-b {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@utility safe-t {
+  padding-top: env(safe-area-inset-top);
+}

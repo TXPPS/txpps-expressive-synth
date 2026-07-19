@@ -1,5 +1,7 @@
 import { useMemo, useRef, useState, useEffect } from "react";
 import { useSynthStore } from "@/state/store";
+import { patchRuntimeDiag } from "@/lib/diagnostics/runtime";
+import { diagInfo } from "@/lib/diagnostics/buffer";
 
 /**
  * TXPPS on-screen keyboard.
@@ -31,8 +33,16 @@ function isBlack(midi: number) {
 
 export function Keyboard({ onNoteOn, onNoteOff }: Props) {
   const panicToken = useSynthStore((s) => s.panicToken);
+  const sustainPedal = useSynthStore((s) => s.sustainPedal);
+  const setSustainPedal = useSynthStore((s) => s.setSustainPedal);
   const [octave, setOctave] = useState(4); // starting C
   const [whiteCount, setWhiteCount] = useState(14);
+  const pointerNotes = useRef<Map<number, number>>(new Map());
+  const [active, setActive] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    patchRuntimeDiag({ octave });
+  }, [octave]);
 
   useEffect(() => {
     const compute = () => {
@@ -67,8 +77,9 @@ export function Keyboard({ onNoteOn, onNoteOff }: Props) {
     return out;
   }, [octave, whiteCount]);
 
-  const pointerNotes = useRef<Map<number, number>>(new Map());
-  const [active, setActive] = useState<Set<number>>(new Set());
+  const syncOwners = () => {
+    patchRuntimeDiag({ keyboardOwners: pointerNotes.current.size });
+  };
 
   const trigger = (midi: number, pointerId: number) => {
     const prev = pointerNotes.current.get(pointerId);
@@ -82,6 +93,7 @@ export function Keyboard({ onNoteOn, onNoteOff }: Props) {
       });
     }
     pointerNotes.current.set(pointerId, midi);
+    syncOwners();
     onNoteOn?.(midi, 0.8);
     setActive((s) => new Set(s).add(midi));
   };
@@ -90,6 +102,7 @@ export function Keyboard({ onNoteOn, onNoteOff }: Props) {
     const midi = pointerNotes.current.get(pointerId);
     if (midi === undefined) return;
     pointerNotes.current.delete(pointerId);
+    syncOwners();
     onNoteOff?.(midi);
     setActive((s) => {
       const n = new Set(s);
@@ -103,20 +116,20 @@ export function Keyboard({ onNoteOn, onNoteOff }: Props) {
     if (panicToken === 0) return;
     for (const midi of pointerNotes.current.values()) onNoteOff?.(midi);
     pointerNotes.current.clear();
+    syncOwners();
     setActive(new Set());
+    diagInfo("INPUT", "keyboard panic clear");
   }, [panicToken, onNoteOff]);
 
   const findNoteFromPoint = (x: number, y: number): number | null => {
     const el = document.elementFromPoint(x, y) as HTMLElement | null;
     if (!el) return null;
-    const midiStr = el.getAttribute("data-midi") ?? el.closest("[data-midi]")?.getAttribute("data-midi");
+    const midiStr =
+      el.getAttribute("data-midi") ?? el.closest("[data-midi]")?.getAttribute("data-midi");
     return midiStr ? parseInt(midiStr, 10) : null;
   };
 
   const whites = notes.filter((n) => !isBlack(n));
-
-  const sustainPedal = useSynthStore((s) => s.sustainPedal);
-  const setSustainPedal = useSynthStore((s) => s.setSustainPedal);
 
   return (
     <div className="flex items-stretch gap-2 min-w-0">
@@ -153,7 +166,7 @@ export function Keyboard({ onNoteOn, onNoteOff }: Props) {
         </button>
       </div>
       <div
-        className="relative flex-1 min-w-0 h-28 sm:h-36 md:h-40 rounded-md overflow-hidden select-none touch-none bg-[color:var(--panel-sunken)]"
+        className="tx80-perf-surface relative flex-1 min-w-0 h-28 sm:h-36 md:h-40 rounded-md overflow-hidden select-none touch-none bg-[color:var(--panel-sunken)]"
         style={{ WebkitUserSelect: "none" }}
         onPointerDown={(e) => {
           (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -166,7 +179,9 @@ export function Keyboard({ onNoteOn, onNoteOff }: Props) {
           if (m !== null) trigger(m, e.pointerId);
         }}
         onPointerUp={(e) => {
-          try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
+          try {
+            (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+          } catch {}
           release(e.pointerId);
         }}
         onPointerCancel={(e) => release(e.pointerId)}
@@ -203,9 +218,14 @@ export function Keyboard({ onNoteOn, onNoteOff }: Props) {
                   <div
                     data-midi={wMidi + 1}
                     className={`pointer-events-auto absolute top-0 right-[-30%] w-[60%] h-[62%] rounded-b-md ${
-                      active.has(wMidi + 1) ? "bg-[color:var(--phosphor-dim)]" : "bg-[color:var(--key-black)]"
+                      active.has(wMidi + 1)
+                        ? "bg-[color:var(--phosphor-dim)]"
+                        : "bg-[color:var(--key-black)]"
                     }`}
-                    style={{ boxShadow: "0 4px 6px -2px rgba(0,0,0,0.6), inset 0 -3px 2px -1px rgba(255,255,255,0.05)" }}
+                    style={{
+                      boxShadow:
+                        "0 4px 6px -2px rgba(0,0,0,0.6), inset 0 -3px 2px -1px rgba(255,255,255,0.05)",
+                    }}
                   />
                 )}
               </div>

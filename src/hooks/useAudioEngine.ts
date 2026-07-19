@@ -34,6 +34,9 @@ import { TX80ProductEngine } from "@/synth-core/tx80/productAdapter";
 import { setTx80Parameters } from "@/synth-core/tx80/parameters";
 import { cloneTx80Patch, TX80_INIT_PATCH, type Tx80Patch } from "@/synth-core/tx80/types";
 import { mapPatchToEngine, mapUiParamToEngine } from "@/synth-core/mapping";
+import { diagError, diagInfo, diagWarn } from "@/lib/diagnostics/buffer";
+import { getRuntimeDiagSnapshot, patchRuntimeDiag } from "@/lib/diagnostics/runtime";
+import { loadTx80Settings } from "@/synth-core/tx80/storage";
 
 /** Full UI patch → complete engine patch (engine-only ids keep their
  *  engine defaults; unmapped UI ids are intentionally dropped). */
@@ -127,15 +130,32 @@ export function useAudioEngine() {
     (status: SynthRuntimeStatus) => {
       phaseRef.current = status.phase;
       setAudioStatus(toAudioStatus(status));
+      patchRuntimeDiag({ audioPhase: status.phase, contextState: status.contextState });
+      diagInfo("AUDIO", `runtime phase=${status.phase}`, { context: status.contextState });
       if (status.phase === "ready") {
-        // Params/sustain may have changed while (re)starting — reconcile the
-        // engine with the CURRENT authoritative state before pending notes
-        // flush (SynthRuntime publishes ready before flushing).
         const engine = engineRef.current;
         engine?.loadState(buildEnginePatch(patchRef.current));
         engine?.setSustain(sustainRef.current);
         engine?.setPitchBend(pitchBendRef.current);
         engine?.setModulation(modWheelRef.current);
+        try {
+          engine?.setPitchBendRange(loadTx80Settings().bendRangeSemitones);
+        } catch {
+          /* settings unavailable */
+        }
+        const diag = engine?.getDiagnostics();
+        patchRuntimeDiag({
+          contextState: diag?.contextState ?? status.contextState,
+          activeVoices: diag?.activeVoices ?? 0,
+          enginesCreated: enginesCreatedRef.current,
+          contextsCreated,
+        });
+        diagInfo("AUDIO", "engine ready");
+      }
+      if (status.phase === "failed") {
+        diagError("AUDIO", "runtime failed", {
+          message: status.error?.message?.slice(0, 200) ?? "unknown",
+        });
       }
     },
     [setAudioStatus],
@@ -162,14 +182,23 @@ export function useAudioEngine() {
   // Enable-pill / explicit activation. Retryable: SynthRuntime clears its
   // in-flight promise on settle, so the next gesture attempts again.
   const initialize = useCallback(() => {
-    void ensureRuntime().activate();
+    diagInfo("AUDIO", "activate requested");
+    void ensureRuntime()
+      .activate()
+      .catch((err) => {
+        diagError("AUDIO", "activate failed", {
+          message: err instanceof Error ? err.message : String(err),
+        });
+      });
   }, [ensureRuntime]);
 
   const handleNoteOn = useCallback(
     (midi: number, velocity: number) => {
       heldRef.current.set(midi, (heldRef.current.get(midi) ?? 0) + 1);
-      // playNote starts activation synchronously inside this gesture when
-      // needed, queues the note, and flushes it once the context runs.
+      patchRuntimeDiag({
+        lastNoteOn: midi,
+        pointerOwners: heldRef.current.size,
+      });
       void ensureRuntime().playNote(midi, velocity);
     },
     [ensureRuntime],
@@ -179,8 +208,10 @@ export function useAudioEngine() {
     const count = heldRef.current.get(midi) ?? 0;
     if (count > 1) heldRef.current.set(midi, count - 1);
     else heldRef.current.delete(midi);
-    // Cancels the pending instance if startup hasn't finished (fast cold
-    // tap), otherwise LIFO-releases one sounding instance of this note.
+    patchRuntimeDiag({
+      lastNoteOff: midi,
+      pointerOwners: heldRef.current.size,
+    });
     runtimeRef.current?.releaseNote(midi);
   }, []);
 
@@ -195,30 +226,46 @@ export function useAudioEngine() {
     const changed = Object.keys(patch).filter((id) => patch[id] !== prev[id]);
     if (changed.length === 0) return;
     if (changed.length > 24) {
-      // Preset-scale change: apply as one coherent state load.
       engine.loadState(buildEnginePatch(patch));
+      diagInfo("PATCH", "preset-scale load", { changed: changed.length });
       return;
     }
     for (const uiId of changed) {
       const updates = mapUiParamToEngine(uiId, patch[uiId], patch);
+      if (Object.keys(updates).length === 0) {
+        diagWarn("PATCH", `unmapped or lossy param ${uiId}`, { value: String(patch[uiId]) });
+      }
       for (const [engineId, value] of Object.entries(updates)) {
         engine.setParameter(engineId, value);
       }
+      patchRuntimeDiag({ lastParamId: uiId });
     }
+    patchRuntimeDiag({
+      portaOn: patch["porta.on"] === true,
+      glissOn: patch["gliss.on"] === true,
+      ribbonRange: Number(patch["ribbon.range"] ?? 12),
+      ribbonMode: String(patch["ribbon.mode"] ?? "continuous"),
+      masterLevel: Number(patch["master.level"] ?? 0.75),
+      maxPolyphony: Number(patch["master.polyphony"] ?? 8),
+    });
   }, [patch]);
 
   // Sustain pedal (store toggle → engine ownership with per-note counts).
   useEffect(() => {
     engineRef.current?.setSustain(sustainPedal);
+    patchRuntimeDiag({ sustain: sustainPedal });
+    diagInfo("INPUT", `sustain=${sustainPedal}`);
   }, [sustainPedal]);
 
   // Pitch bend / mod wheel (performance transients → engine).
   useEffect(() => {
     engineRef.current?.setPitchBend(pitchBend);
+    patchRuntimeDiag({ pitchBend });
   }, [pitchBend]);
 
   useEffect(() => {
     engineRef.current?.setModulation(modWheel);
+    patchRuntimeDiag({ modWheel });
   }, [modWheel]);
 
   const handleRibbonPosition = useCallback((norm: number) => {
@@ -234,6 +281,16 @@ export function useAudioEngine() {
     if (panicToken === 0) return;
     heldRef.current.clear();
     runtimeRef.current?.panic();
+    engineRef.current?.releaseRibbon();
+    const snap = engineRef.current?.getDiagnostics();
+    patchRuntimeDiag({
+      panicCount: panicToken,
+      pointerOwners: 0,
+      activeVoices: snap?.activeVoices ?? 0,
+      ribbonOwned: false,
+      ribbonValue: null,
+    });
+    diagWarn("AUDIO", "panic", { token: panicToken });
   }, [panicToken]);
 
   // Blur / hidden: release every forwarded press (and lift engine sustain so
@@ -241,7 +298,7 @@ export function useAudioEngine() {
   // return. The Keyboard's own pointer handlers stay untouched — a later
   // pointerup for an already-released press is a harmless no-op downstream.
   useEffect(() => {
-    const releaseAll = () => {
+    const releaseAll = (reason: "blur" | "visibility") => {
       const runtime = runtimeRef.current;
       if (!runtime) return;
       engineRef.current?.setSustain(false);
@@ -249,17 +306,37 @@ export function useAudioEngine() {
         for (let i = 0; i < count; i++) runtime.releaseNote(midi);
       }
       heldRef.current.clear();
+      const cur = getRuntimeDiagSnapshot();
+      if (reason === "blur") {
+        patchRuntimeDiag({ blurCleanupCount: cur.blurCleanupCount + 1, pointerOwners: 0 });
+      } else {
+        patchRuntimeDiag({
+          visibilityCleanupCount: cur.visibilityCleanupCount + 1,
+          pointerOwners: 0,
+        });
+      }
+      diagInfo("INPUT", `cleanup:${reason}`);
     };
     const onVisibility = () => {
-      if (document.hidden) releaseAll();
+      if (document.hidden) releaseAll("visibility");
       else engineRef.current?.setSustain(sustainRef.current);
     };
-    const onBlur = () => releaseAll();
+    const onBlur = () => releaseAll("blur");
     window.addEventListener("blur", onBlur);
     document.addEventListener("visibilitychange", onVisibility);
+
+    const w = window as unknown as {
+      __TX80_SET_BEND_RANGE?: (n: number) => void;
+    };
+    w.__TX80_SET_BEND_RANGE = (n: number) => {
+      engineRef.current?.setPitchBendRange(n);
+      diagInfo("SYSTEM", `bendRange=${n}`);
+    };
+
     return () => {
       window.removeEventListener("blur", onBlur);
       document.removeEventListener("visibilitychange", onVisibility);
+      delete w.__TX80_SET_BEND_RANGE;
     };
   }, []);
 

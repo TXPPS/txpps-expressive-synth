@@ -14,6 +14,8 @@ import {
   toPresetMeta,
   type UserPatch,
 } from "@/state/presets";
+import { diagInfo, diagWarn } from "@/lib/diagnostics/buffer";
+import { patchRuntimeDiag } from "@/lib/diagnostics/runtime";
 
 export function PresetBar() {
   const { currentPreset, setCurrentPreset, patch, loadPatch } = useSynthStore();
@@ -30,6 +32,12 @@ export function PresetBar() {
         loadPatch(factory.values);
         setCurrentPreset(toPresetMeta(factory, "factory"));
         saveLastPresetId(id);
+        patchRuntimeDiag({
+          currentPatchId: factory.id,
+          currentPatchName: factory.name,
+          patchSource: "factory",
+        });
+        diagInfo("PATCH", `load factory ${factory.name}`);
         return;
       }
       const user = userPatches.find((p) => p.id === id);
@@ -37,6 +45,14 @@ export function PresetBar() {
         loadPatch(user.values);
         setCurrentPreset(toPresetMeta(user, "user"));
         saveLastPresetId(id);
+        patchRuntimeDiag({
+          currentPatchId: user.id,
+          currentPatchName: user.name,
+          patchSource: "user",
+        });
+        diagInfo("PATCH", `load user ${user.name}`);
+      } else {
+        diagWarn("PATCH", `preset not found ${id}`);
       }
     },
     [loadPatch, setCurrentPreset, userPatches],
@@ -49,6 +65,7 @@ export function PresetBar() {
     const last = loadLastPresetId();
     const initial =
       (last && (findFactoryPatch(last) || users.find((u) => u.id === last)) && last) ||
+      findFactoryPatch("tx80-factory-init")?.id ||
       FACTORY_PATCHES[0]?.id;
     if (initial) {
       const factory = findFactoryPatch(initial);

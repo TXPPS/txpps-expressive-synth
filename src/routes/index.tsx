@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { Header } from "@/components/synth/Header";
 import { PresetBar } from "@/components/synth/PresetBar";
 import { LayerPanel } from "@/components/synth/LayerPanel";
@@ -10,6 +11,7 @@ import { Ribbon } from "@/components/synth/Ribbon";
 import { Keyboard } from "@/components/synth/Keyboard";
 import { useSynthStore } from "@/state/store";
 import { useAudioEngine } from "@/hooks/useAudioEngine";
+import { installDiagnosticCapture, patchRuntimeDiag } from "@/lib/diagnostics/runtime";
 
 export const Route = createFileRoute("/")({
   component: TX80Panel,
@@ -18,13 +20,16 @@ export const Route = createFileRoute("/")({
 function TX80Panel() {
   const audioStatus = useSynthStore((s) => s.audioStatus);
   const uiMode = useSynthStore((s) => s.uiMode);
-  const {
-    initialize,
-    handleNoteOn,
-    handleNoteOff,
-    handleRibbonPosition,
-    handleRibbonRelease,
-  } = useAudioEngine();
+  const { initialize, handleNoteOn, handleNoteOff, handleRibbonPosition, handleRibbonRelease } =
+    useAudioEngine();
+
+  useEffect(() => {
+    installDiagnosticCapture();
+  }, []);
+
+  useEffect(() => {
+    patchRuntimeDiag({ uiMode });
+  }, [uiMode]);
 
   const enableAudio = () => {
     if (audioStatus === "running") return;
@@ -45,7 +50,8 @@ function TX80Panel() {
           onClick={enableAudio}
           className="mx-3 sm:mx-4 mb-2 panel-sunken silkscreen-strong text-[color:var(--amber)] border border-[color:var(--amber-dim)] px-3 py-1.5 rounded self-start text-[0.65rem] sm:text-xs"
         >
-          ▶ TAP TO ENABLE AUDIO — {audioStatus === "starting" ? "starting…" : "browser autoplay policy"}
+          ▶ TAP TO ENABLE AUDIO —{" "}
+          {audioStatus === "starting" ? "starting…" : "browser autoplay policy"}
         </button>
       )}
 
@@ -80,16 +86,15 @@ function TX80Panel() {
           playFocused ? "flex-1" : editOnly ? "shrink-0" : ""
         }`}
       >
-          <PerformanceStrip />
-          <div className={`flex-1 min-w-0 flex flex-col gap-2 ${playFocused ? "justify-end" : ""}`}>
-            <Ribbon onPosition={handleRibbonPosition} onRelease={handleRibbonRelease} />
-            <Keyboard onNoteOn={handleNoteOn} onNoteOff={handleNoteOff} />
-          </div>
-        </section>
+        <PerformanceStrip />
+        <div className={`flex-1 min-w-0 flex flex-col gap-2 ${playFocused ? "justify-end" : ""}`}>
+          <Ribbon onPosition={handleRibbonPosition} onRelease={handleRibbonRelease} />
+          <Keyboard onNoteOn={handleNoteOn} onNoteOff={handleNoteOff} />
+        </div>
+      </section>
 
       <div className="silkscreen text-center py-1.5 border-t border-[color:var(--hairline)] safe-b">
-        TXPPS TX-80 · Gate 2 ·{" "}
-        {uiMode === "play" ? "PLAY" : uiMode === "edit" ? "EDIT" : "FULL"}
+        TXPPS TX-80 · Gate 2 · {uiMode === "play" ? "PLAY" : uiMode === "edit" ? "EDIT" : "FULL"}
       </div>
 
       <style>{`

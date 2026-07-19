@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { useSynthStore, type UiMode } from "@/state/store";
+import { SettingsDialog } from "./SettingsDialog";
 
 const MODES: { id: UiMode; label: string }[] = [
   { id: "full", label: "FULL" },
@@ -8,6 +10,7 @@ const MODES: { id: UiMode; label: string }[] = [
 
 export function Header() {
   const { uiMode, setUiMode, audioStatus, panic } = useSynthStore();
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const statusLabel =
     audioStatus === "running"
       ? "READY"
@@ -32,6 +35,7 @@ export function Header() {
         {MODES.map((m) => (
           <button
             key={m.id}
+            type="button"
             onClick={() => setUiMode(m.id)}
             className={`silkscreen-strong rounded-md border px-2 py-1 text-[0.65rem] sm:px-3 sm:py-1.5 sm:text-xs transition-colors ${
               uiMode === m.id
@@ -42,6 +46,15 @@ export function Header() {
             {m.label}
           </button>
         ))}
+        <button
+          type="button"
+          onClick={() => setSettingsOpen(true)}
+          className="silkscreen-strong rounded-md border border-[color:var(--hairline)] px-2 py-1 text-[0.65rem] sm:px-3 sm:py-1.5 sm:text-xs text-[color:var(--silkscreen-dim)] hover:text-[color:var(--silkscreen)]"
+          aria-haspopup="dialog"
+          aria-expanded={settingsOpen}
+        >
+          SETTINGS
+        </button>
         <div className="mx-1 h-5 w-px bg-[color:var(--hairline)]" aria-hidden />
         <div
           className={`silkscreen-strong rounded-md border px-2 py-1 text-[0.65rem] sm:px-3 sm:py-1.5 sm:text-xs ${
@@ -54,6 +67,7 @@ export function Header() {
           {statusLabel}
         </div>
         <button
+          type="button"
           onClick={panic}
           className="silkscreen-strong rounded-md border border-[color:var(--alert)] px-2 py-1 text-[0.65rem] text-[color:var(--alert)] sm:px-3 sm:py-1.5 sm:text-xs hover:bg-[color:var(--alert)]/10"
           aria-label="Panic — all notes off"
@@ -61,6 +75,7 @@ export function Header() {
           PANIC
         </button>
       </div>
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </header>
   );
 }
