@@ -105,17 +105,32 @@ test.describe("responsive mode matrix", () => {
             const pb = await pitch.boundingBox();
             const kb = await page.locator("[data-tx80-keyboard]").boundingBox();
             expect(pb && kb).toBeTruthy();
-            // Pitch/Mod must be meaningfully tall (≥ 96px) in PLAY
-            expect(pb!.height).toBeGreaterThanOrEqual(96);
+            // Pitch/Mod must fill shared lower-row height in PLAY (≥ 160px large phone)
+            expect(pb!.height).toBeGreaterThanOrEqual(vp.height > 800 ? 160 : 96);
             // Portrait phone keys must not be stubby
             if (vp.height > vp.width && vp.width <= 430) {
               expect(kb!.height).toBeGreaterThanOrEqual(160);
+              // Side controls align with keyboard (shared grid row)
+              const lower = page.locator("[data-tx80-dock-lower]");
+              if (await lower.count()) {
+                const pitchBox = await pitch.boundingBox();
+                const keyBox = await page.locator("[data-tx80-keyboard]").boundingBox();
+                expect(pitchBox && keyBox).toBeTruthy();
+                expect(Math.abs(pitchBox!.y - keyBox!.y)).toBeLessThan(8);
+                expect(Math.abs(pitchBox!.y + pitchBox!.height - (keyBox!.y + keyBox!.height))).toBeLessThan(
+                  48,
+                );
+              }
             }
-            // Sticky header
+            // Fixed app header (sticky fails under overflow-x ancestors on iPhone Safari)
             const headerPos = await page.locator("[data-tx80-header]").evaluate((el) =>
               getComputedStyle(el).position,
             );
-            expect(headerPos).toBe("sticky");
+            expect(headerPos).toBe("fixed");
+            await expect(page.locator("[data-tx80-header]")).toHaveAttribute(
+              "data-tx80-header-position",
+              "fixed",
+            );
           }
 
           if (mode === "edit") {

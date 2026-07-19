@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSynthStore, type UiMode } from "@/state/store";
 import { useViewportLayout } from "@/hooks/useViewportLayout";
 import { SettingsDialog } from "./SettingsDialog";
@@ -10,6 +10,15 @@ const MODES: { id: UiMode; label: string; short: string }[] = [
   { id: "play", label: "PLAY", short: "PLAY" },
 ];
 
+const HEADER_HEIGHT_VAR = "--tx80-header-height";
+
+/**
+ * TX-80 application toolbar.
+ * Uses position:fixed — sticky fails on iPhone Safari when any ancestor
+ * (including body overflow-x:hidden / shell overflow-x-hidden) creates a
+ * containing block. Header height is published as a CSS variable so content
+ * can pad below it exactly.
+ */
 export function Header({ onAudioStart }: { onAudioStart: () => void }) {
   const uiMode = useSynthStore((s) => s.uiMode);
   const setUiMode = useSynthStore((s) => s.setUiMode);
@@ -17,7 +26,27 @@ export function Header({ onAudioStart }: { onAudioStart: () => void }) {
   const panic = useSynthStore((s) => s.panic);
   const layout = useViewportLayout();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const headerRef = useRef<HTMLElement>(null);
   const compact = layout.isNarrow;
+
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const publish = () => {
+      const h = Math.ceil(el.getBoundingClientRect().height);
+      document.documentElement.style.setProperty(HEADER_HEIGHT_VAR, `${h}px`);
+    };
+    publish();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(publish) : null;
+    ro?.observe(el);
+    window.addEventListener("orientationchange", publish);
+    window.addEventListener("resize", publish);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener("orientationchange", publish);
+      window.removeEventListener("resize", publish);
+    };
+  }, [compact, layout.isPhoneLandscape]);
 
   const statusLabel =
     audioStatus === "running"
@@ -60,15 +89,16 @@ export function Header({ onAudioStart }: { onAudioStart: () => void }) {
 
   return (
     <header
+      ref={headerRef}
       data-tx80-header="true"
-      className="sticky top-0 z-50 flex items-center justify-between gap-2 px-2 py-1.5 sm:px-4 sm:py-2.5 border-b border-[color:var(--hairline)] shrink-0 bg-[color:var(--background)]"
+      data-tx80-header-position="fixed"
+      className="fixed top-0 left-0 right-0 z-[80] flex items-center justify-between gap-2 px-2 py-1.5 sm:px-4 sm:py-2.5 border-b border-[color:var(--hairline)]"
       style={{
         paddingTop: "max(env(safe-area-inset-top), 0.35rem)",
         paddingLeft: "max(env(safe-area-inset-left), 0.5rem)",
         paddingRight: "max(env(safe-area-inset-right), 0.5rem)",
-        // Opaque overscroll so scrolling content never bleeds through
-        backgroundImage:
-          "linear-gradient(180deg, var(--background) 0%, color-mix(in oklab, var(--panel) 85%, var(--background)) 100%)",
+        background:
+          "linear-gradient(180deg, var(--background) 0%, color-mix(in oklab, var(--panel) 88%, var(--background)) 100%)",
       }}
     >
       <div className="flex items-baseline gap-1.5 min-w-0 shrink">
@@ -149,3 +179,5 @@ export function Header({ onAudioStart }: { onAudioStart: () => void }) {
     </header>
   );
 }
+
+export { HEADER_HEIGHT_VAR };

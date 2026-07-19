@@ -191,8 +191,18 @@ oldEngineLoaded: ${snap.oldEngineLoaded}`}
               <pre className="tx80-diag-terminal panel-sunken p-2 text-[0.65rem] font-mono text-[color:var(--phosphor)] whitespace-pre-wrap">
                 {formatBuildSummary(build)}
               </pre>
+              <pre className="tx80-diag-terminal panel-sunken p-2 text-[0.65rem] font-mono text-[color:var(--phosphor)] whitespace-pre-wrap">
+                {`layout: TXPPS TX-80 · ${snap.uiMode.toUpperCase()} · ${snap.layoutTier}
+viewport: ${snap.viewport}
+orientation: ${snap.orientation}
+header: fixed (app toolbar)
+scrollOwner: document`}
+              </pre>
               <p className="silkscreen text-[0.55rem] text-[color:var(--silkscreen-dim)]">
                 TXPPS TX-80 · dual-layer expressive web synthesizer · Gate 2
+              </p>
+              <p className="silkscreen text-[0.5rem] text-[color:var(--silkscreen-dim)]">
+                Phone PLAY hides the build footer — layout tier lives here and in Diagnostics.
               </p>
             </SectionBox>
           )}

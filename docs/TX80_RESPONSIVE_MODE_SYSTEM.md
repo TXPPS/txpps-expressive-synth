@@ -1,6 +1,6 @@
 # TX-80 Responsive Mode System
 
-**Status:** shipped on `main` (TX27 performance parity pass).
+**Status:** shipped on `main` (fixed header + portrait dock expansion).
 
 ## Mode contracts
 
@@ -12,9 +12,24 @@
 
 Mode is persisted in `localStorage` key `tx80-ui-mode`. Switching modes never recreates `AudioContext`, never resets the patch, and never remounts the synth engine.
 
-## Sticky header
+## Fixed app header
 
-`Header` uses `position: sticky; top: 0; z-index: 50` with opaque enclosure background and `env(safe-area-inset-top)`. Remains visible while editor content scrolls.
+**Choice: `position: fixed`** (not sticky).
+
+**Why sticky failed on physical iPhone Safari:** sticky positioning is broken when any ancestor (commonly `overflow-x: hidden` on `html`/`body`, or a shell with `overflow-x-hidden`) establishes a scroll/overflow containing block. Playwright Chromium still reported sticky as “working,” which diverged from real WebKit.
+
+**Implementation:**
+
+- `Header` is `position: fixed; top: 0; left: 0; right: 0; z-index: 80`
+- Opaque gradient background for readability
+- `padding-top: max(env(safe-area-inset-top), 0.35rem)` (and L/R safe-area)
+- `ResizeObserver` publishes `--tx80-header-height` on `:root`
+- Shell (`[data-tx80-shell]`) uses `padding-top: var(--tx80-header-height)` so content never sits under the toolbar
+- `data-tx80-header-position="fixed"` · `data-tx80-scroll-owner="document"`
+
+**Scroll owner:** the **document** (window). There is no nested app scrollport for the main shell. Native Safari chrome is outside app control — only the TX-80 toolbar is pinned.
+
+**No duplicate toolbar** across orientation changes (single Header mount).
 
 ## Viewport tiers
 
@@ -25,17 +40,28 @@ Capability-based (no user-agent sniffing) via `useViewportLayout()`:
 - `tablet-portrait` / `tablet-landscape`
 - `desktop` / `wide-desktop`
 
-Uses width, height, orientation, and short-landscape detection (`height ≤ 560`).
+## Performance dock geometry
 
-## Performance dock
+Shared CSS variables on the dock (tier-tuned):
 
-Coordinated surface: ribbon · pitch · mod · octave · sustain · keyboard.
+| Variable | Role |
+|----------|------|
+| `--tx80-lower-perf-min` | Minimum shared lower-row height (dvh-based on phone PLAY) |
+| `--tx80-dock-gap` | Gap between Pitch / Mod / Oct / keys |
+| `--tx80-side-control-width` | Pitch & Mod column width |
+| `--tx80-oct-col-width` | Octave / display / Sustain column |
+| `--tx80-ribbon-height` | Ribbon slot (documented target) |
 
-- **PLAY (all phones/tablets):** ribbon above; **tall vertical** Pitch/Mod filling keyboard height; octave/sustain column; keyboard with TX27 discrete white-key steps
-- **Phone portrait:** key bed `min-height ≈ 200px`, minKeyWidth 34 → typically **7–10** white keys
-- **Phone landscape:** broader range (10–14), dock fills viewport height
-- **EDIT audition:** reduced but intentional height via SHOW KEYS
-- See `docs/TX80_KEYBOARD_GEOMETRY.md`
+**PLAY lower row** = CSS Grid:
+
+`Pitch | Mod | Oct/Sus | Keyboard` — one `minmax(--tx80-lower-perf-min, 1fr)` row so all four regions share top/bottom bounds.
+
+- Pitch/Mod tracks fill column height (real pointer travel = strip `getBoundingClientRect().height`)
+- Sustain is `flex-1` in the oct column (grows downward; ≥44×44)
+- Phone PLAY: build footer removed; layout line lives in Settings → ABOUT / Diagnostics
+- FULL/EDIT: thin build footer on tablet/desktop only (not phone)
+
+See `docs/TX80_KEYBOARD_GEOMETRY.md`.
 
 ## Patch selection
 
@@ -43,45 +69,24 @@ Two levels — see `docs/TX80_PATCH_BROWSER_BEHAVIOR.md`.
 
 ## Audio start
 
-Single header control (`data-tx80-audio-start`):
-
-| State | Label (desktop) | Compact |
-|-------|-----------------|---------|
-| idle | TAP TO START | START |
-| starting | STARTING | … |
-| running | READY | READY |
-| suspended | RESUME | RESUME |
-| failed | RETRY | RETRY |
-
-The long “TAP TO ENABLE AUDIO — BROWSER AUTOPLAY POLICY” banner is removed.
-
-## Preset browser
-
-Tappable patch name opens overlay (`data-tx80-preset-browser`):
-
-- Categories: Keys, Pads, Leads, Bass, Experimental (+ All / Favorites / User)
-- Search, favorites, save, restore factory
-- Phone portrait: bottom sheet; tablet/desktop: centered panel
-- Escape closes; focus returns; does not reset audio
+Single header control (`data-tx80-audio-start`). The long autoplay banner is removed.
 
 ## Accessibility
 
 - Instrument `user-select: none`; diagnostic terminal remains selectable
-- Mode group, audio status, and panic keep accessible names
-- Touch targets ≈ 44×44 CSS px where practical
+- Compact portrait keeps short labels with full `aria-label`s
 - `env(safe-area-inset-*)` on header and performance dock
-- Reduced-motion: no mandatory motion for mode changes
 
 ## Rollback
 
 ```bash
-git revert <responsive-commit-sha>
-# or
-git checkout archive/pre-gate2-main   # pre Gate 1+2 only — last resort
+git revert <this-fix-commit-sha>
+# or last-resort pre Gate 1+2:
+git checkout archive/pre-gate2-main
 ```
 
 ## Related
 
 - `docs/TX80_MOBILE_QA_MATRIX.md`
-- `docs/TX80_CONTROL_CONNECTION_AUDIT.md`
+- `docs/TX80_KEYBOARD_GEOMETRY.md`
 - `CURRENT_STATUS.md`

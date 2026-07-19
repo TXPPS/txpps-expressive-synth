@@ -51,5 +51,16 @@ export default defineConfig({
       name: "chromium-desktop",
       use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 900 }, hasTouch: true },
     },
+    {
+      // Mobile WebKit — closer to real iPhone Safari sticky/fixed + overflow behavior
+      name: "mobile-webkit",
+      use: {
+        ...devices["iPhone 13 Pro"],
+        viewport: { width: 430, height: 932 },
+        hasTouch: true,
+        isMobile: true,
+      },
+      testMatch: ["**/fixed-header.e2e.ts"],
+    },
   ],
 });

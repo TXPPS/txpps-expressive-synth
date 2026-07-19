@@ -2,7 +2,13 @@
 
 Public preview: https://txpps-tx-80.toppsmusicproductions.workers.dev/
 
-Automated coverage: `tests/e2e/responsive-modes.e2e.ts`  
+Automated coverage:
+
+- `tests/e2e/responsive-modes.e2e.ts` (Chromium matrix)
+- `tests/e2e/fixed-header.e2e.ts` (**mobile WebKit** project + Chromium)
+- `tests/e2e/voice-stress.e2e.ts`
+- `tests/e2e/gate2-runtime.e2e.ts`
+
 Screenshots (gitignored): `qa/responsive-screenshots/`
 
 ## Viewport matrix
@@ -19,36 +25,33 @@ Screenshots (gitignored): `qa/responsive-screenshots/`
 | Desktop | 1366×768 | FULL, EDIT, PLAY |
 | Wide desktop | 1920×1080 | FULL, EDIT, PLAY |
 
-## Automated assertions (per mode/viewport)
+## Automated assertions
 
 1. No horizontal page overflow  
 2. Header brand does not overlap mode switcher  
-3. Sticky header (`position: sticky`)  
-4. Exactly one audio-start control  
-5. Autoplay banner absent  
-6. PLAY: tall Pitch/Mod (≥96px); portrait keys ≥160px  
-7. EDIT: no dock by default; SHOW KEYS / HIDE KEYS works  
-8. FULL: editor + dock  
-9. Quick patch list opens from patch name  
-10. Full library opens from LIBRARY; 18 factory rows; USER filter visible  
-11. Orientation preserves mode + patch  
-12. Voice stress: 500 events / 5 seeds (separate suite)  
-13. Screenshots under `qa/responsive-screenshots/`
-8. Preset browser opens; 18 factory rows; select + Escape  
-9. Orientation change preserves mode + patch  
-10. Settings / diagnostic terminal selectable  
-11. No Lovable branding  
-12. Screenshots written under `qa/responsive-screenshots/`
+3. **Fixed** app header (`position: fixed`) — stays at viewport top after deep scroll (WebKit suite)  
+4. Main content padded by `--tx80-header-height`; first section below header  
+5. Exactly one audio-start control; one header instance across orientation  
+6. Autoplay banner absent  
+7. PLAY: tall Pitch/Mod (large phone ≥160–200px); portrait keys ≥160px  
+8. PLAY: lower dock regions share aligned tops; Sustain ≥44×44 and grows  
+9. PLAY phone: no build footer  
+10. EDIT: no dock by default; SHOW KEYS / HIDE KEYS works  
+11. FULL: editor + dock  
+12. Quick patch list + full library  
+13. Orientation preserves mode + patch  
+14. Voice stress: 500 events / 5 seeds  
+15. Screenshots under `qa/responsive-screenshots/`
 
 ## Physical phone checklist (still required)
 
-- [ ] iPhone Safari portrait PLAY — keys + ribbon + sustain reachable without scrolling editors  
-- [ ] iPhone Safari landscape PLAY — no vertical scroll while playing; safe areas clear  
-- [ ] iPhone EDIT — SHOW KEYS audition; panels via section nav  
+- [ ] iPhone Safari — **app toolbar stays put** while scrolling FULL/EDIT (Safari URL bar may move)  
+- [ ] iPhone Safari portrait PLAY — Pitch/Mod/Sustain fill dock height with keyboard  
+- [ ] iPhone Safari landscape PLAY — no layout regression  
 - [ ] Android Chrome portrait + landscape same checks  
 - [ ] Audio START / READY / background suspend + RESUME  
-- [ ] Hard refresh after deploy (see below)  
-- [ ] Custom TXPPS favicon + title  
+- [ ] Hard refresh after deploy  
+- [ ] SETTINGS → ABOUT shows layout tier line  
 - [ ] Human listening across factory patches  
 
 ## Hard refresh / cache
@@ -56,13 +59,13 @@ Screenshots (gitignored): `qa/responsive-screenshots/`
 After deploy:
 
 1. Close all tabs for the preview origin.  
-2. iOS Safari: Settings → Safari → Clear History and Website Data (or remove the site data for the workers.dev host), then reopen.  
+2. iOS Safari: Settings → Safari → Clear History and Website Data (or remove site data for the workers.dev host), then reopen.  
 3. Or open a private tab to the preview URL.  
-4. Confirm SETTINGS → DIAGNOSTICS build commit matches `main` HEAD.  
+4. Confirm SETTINGS → DIAGNOSTICS / ABOUT build commit matches `main` HEAD.  
 
 ## Known limitations
 
-- Physical-device validation is not claimed by automation alone.  
+- Emulation alone is **not** sufficient proof for sticky/fixed header behavior.  
+- Physical-device validation remains mandatory after every mobile layout deploy.  
 - Ribbon **trigger** and MIDI remain deferred.  
-- Some layer registry params remain unmapped (Gate 6).  
 - Full-repo lint still reports historical CRLF prettier noise.

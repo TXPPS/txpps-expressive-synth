@@ -47,6 +47,7 @@ function TX80Panel() {
       uiMode,
       viewport: `${layout.width}x${layout.height}`,
       orientation: layout.isPortrait ? "portrait" : "landscape",
+      layoutTier: layout.tier,
     });
   }, [uiMode, layout]);
 
@@ -59,11 +60,17 @@ function TX80Panel() {
 
   return (
     <div
-      className={`enclosure flex flex-col overflow-x-hidden ${
+      className={`enclosure flex flex-col ${
         playFocused ? "h-[100dvh] max-h-[100dvh]" : "min-h-[100dvh]"
       }`}
       data-tx80-shell={uiMode}
       data-tx80-tier={layout.tier}
+      data-tx80-scroll-owner="document"
+      style={{
+        // Fixed app header publishes --tx80-header-height; pad content so nothing hides under it.
+        // Fallback covers first paint before ResizeObserver. Safe-area is inside the header itself.
+        paddingTop: "var(--tx80-header-height, 3.25rem)",
+      }}
     >
       <Header onAudioStart={initialize} />
       <PresetBar />
@@ -154,8 +161,13 @@ function TX80Panel() {
         />
       )}
 
-      {!playFocused && (
-        <div className="silkscreen text-center py-1 border-t border-[color:var(--hairline)] safe-b shrink-0">
+      {/* PLAY: no footer — reclaim height for Pitch/Mod/Sustain/keys.
+          FULL/EDIT: thin build line only on non-phone; phone uses Settings → ABOUT. */}
+      {!playFocused && !layout.isNarrow && (
+        <div
+          className="silkscreen text-center py-1 border-t border-[color:var(--hairline)] safe-b shrink-0"
+          data-tx80-build-footer="true"
+        >
           TXPPS TX-80 · {uiMode === "edit" ? "EDIT" : "FULL"} · {layout.tier}
         </div>
       )}

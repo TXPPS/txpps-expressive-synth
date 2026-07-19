@@ -5,7 +5,7 @@ Authority: product as shipped on **`main`**.
 
 | Control | Status | Notes |
 |---------|--------|-------|
-| Header FULL/EDIT/PLAY | CONNECTED | Sticky header; persisted `tx80-ui-mode` |
+| Header FULL/EDIT/PLAY | CONNECTED | Fixed header; persisted `tx80-ui-mode` |
 | Header READY / START | CONNECTED | Single audio-start control (banner removed) |
 | Header PANIC | CONNECTED | Clears voices, ribbon, sustain |
 | Header SETTINGS | CONNECTED | Modal with SYSTEM / AUDIO / MIDI / DIAGNOSTICS / ABOUT |

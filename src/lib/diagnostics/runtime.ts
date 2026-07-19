@@ -39,6 +39,7 @@ export interface RuntimeDiagSnapshot {
   currentPatchName: string | null;
   patchSource: string | null;
   uiMode: string;
+  layoutTier: string;
   lastParamId: string | null;
   midiAvailable: boolean | null;
   online: boolean;
@@ -87,6 +88,7 @@ const snapshot: RuntimeDiagSnapshot = {
   currentPatchName: null,
   patchSource: null,
   uiMode: "full",
+  layoutTier: "desktop",
   lastParamId: null,
   midiAvailable: null,
   online: true,
@@ -205,7 +207,7 @@ export function formatSessionSummary(): string {
     "",
     "PATCH",
     `id=${s.currentPatchId ?? "-"} name=${s.currentPatchName ?? "-"} source=${s.patchSource ?? "-"}`,
-    `uiMode=${s.uiMode} lastParam=${s.lastParamId ?? "-"}`,
+    `uiMode=${s.uiMode} layoutTier=${s.layoutTier} lastParam=${s.lastParamId ?? "-"}`,
     "",
     "BROWSER",
     `viewport=${s.viewport} dpr=${s.dpr} orient=${s.orientation} touch=${s.touch}`,

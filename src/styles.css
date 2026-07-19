@@ -132,6 +132,16 @@
     overflow-x: hidden;
   }
 
+  /* Authoritative app-header height (Header ResizeObserver overwrites).
+     Includes typical compact toolbar; safe-area is applied inside the fixed header. */
+  :root {
+    --tx80-header-height: 3.25rem;
+    --tx80-dock-gap: 0.5rem;
+    --tx80-side-control-width: 2.75rem;
+    --tx80-oct-col-width: 3.5rem;
+    --tx80-lower-perf-min: 12.5rem;
+  }
+
   /* Typing fields remain editable/selectable */
   input:not([type="range"]):not([type="checkbox"]):not([type="radio"]),
   textarea,

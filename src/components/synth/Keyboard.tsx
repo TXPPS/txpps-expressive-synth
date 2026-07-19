@@ -280,9 +280,12 @@ export function Keyboard({
 export function OctaveSustainColumn({
   className = "",
   horizontal = false,
+  fill = false,
 }: {
   className?: string;
   horizontal?: boolean;
+  /** Stretch to fill shared dock-row height; Sustain grows into remaining space. */
+  fill?: boolean;
 }) {
   const sustainPedal = useSynthStore((s) => s.sustainPedal);
   const setSustainPedal = useSynthStore((s) => s.setSustainPedal);
@@ -331,11 +334,17 @@ export function OctaveSustainColumn({
   }
 
   return (
-    <div className={`flex flex-col gap-1 shrink-0 w-[3.25rem] sm:w-16 self-stretch ${className}`}>
+    <div
+      data-tx80-oct-sus-col="true"
+      className={`flex flex-col gap-1 shrink-0 self-stretch min-h-0 ${
+        fill ? "h-full w-full" : "w-[3.25rem] sm:w-16"
+      } ${className}`}
+      style={fill ? { width: "var(--tx80-oct-col-width, 3.5rem)" } : undefined}
+    >
       <button
         type="button"
         onClick={() => setKeyboardOctave(Math.min(8, octave + 1))}
-        className="panel-sunken silkscreen-strong px-1 py-1 rounded text-[0.55rem] min-h-11"
+        className="panel-sunken silkscreen-strong px-1 py-1 rounded text-[0.55rem] min-h-11 shrink-0"
         aria-label="Octave up"
       >
         OCT +
@@ -343,18 +352,19 @@ export function OctaveSustainColumn({
       <button
         type="button"
         onClick={() => setKeyboardOctave(Math.max(0, octave - 1))}
-        className="panel-sunken silkscreen-strong px-1 py-1 rounded text-[0.55rem] min-h-11"
+        className="panel-sunken silkscreen-strong px-1 py-1 rounded text-[0.55rem] min-h-11 shrink-0"
         aria-label="Octave down"
       >
         OCT -
       </button>
-      <div className="panel-sunken silkscreen-strong px-1 py-1 rounded text-[0.55rem] text-[color:var(--phosphor)] text-center">
+      <div className="panel-sunken silkscreen-strong px-1 py-1 rounded text-[0.55rem] text-[color:var(--phosphor)] text-center shrink-0">
         C{octave}
       </div>
       <button
         type="button"
+        data-tx80-sustain="true"
         onClick={() => setSustainPedal(!sustainPedal)}
-        className={`mt-auto ${sustainCls} flex-1`}
+        className={`${sustainCls} flex-1 min-h-11 w-full ${fill ? "mt-0" : "mt-auto"}`}
         aria-pressed={sustainPedal}
         aria-label="Sustain"
       >

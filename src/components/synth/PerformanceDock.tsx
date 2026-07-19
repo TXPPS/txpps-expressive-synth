@@ -1,6 +1,6 @@
 import type { ViewportLayout } from "@/hooks/useViewportLayout";
 import { geometryPolicy } from "@/lib/keyboardGeometry";
-import { PerformanceStrip } from "./PerformanceStrip";
+import { PitchColumn, ModColumn, PerformanceStrip } from "./PerformanceStrip";
 import { Ribbon } from "./Ribbon";
 import { Keyboard, OctaveSustainColumn } from "./Keyboard";
 import type { UiMode } from "@/state/store";
@@ -16,8 +16,10 @@ interface Props {
 }
 
 /**
- * Coordinated performance dock — TX27 side-column proportions with TX-80 ribbon.
- * Phone portrait PLAY uses tall vertical Pitch/Mod + tall key bed (not short bars).
+ * Coordinated performance dock.
+ *
+ * Portrait PLAY uses a deterministic CSS grid so Pitch | Mod | Oct/Sus | Keyboard
+ * share one lower-row height (TX27-style). Shared geometry CSS vars are set per tier.
  */
 export function PerformanceDock({
   uiMode,
@@ -43,16 +45,28 @@ export function PerformanceDock({
   });
 
   const shellClass = playFocused ? "flex-1 min-h-0 flex flex-col" : "shrink-0";
+  const geo = dockGeometryVars(layout, playFocused);
 
-  /** Shared side-column row: tall wheels | octave/sus | keyboard */
-  const sideColumnRow = (
+  /** Grid lower row: Pitch | Mod | Oct/Sus | Keyboard — identical stretch height */
+  const lowerGrid = (
     <div
-      className={`flex gap-2 sm:gap-3 items-stretch min-w-0 ${playFocused ? "flex-1 min-h-0" : ""}`}
-      style={playFocused ? { minHeight: playPortrait ? 220 : 170 } : undefined}
-      data-tx80-dock-row="side"
+      className="tx80-dock-lower min-w-0 w-full"
+      data-tx80-dock-lower="true"
+      style={{
+        display: "grid",
+        gridTemplateColumns:
+          "var(--tx80-side-control-width) var(--tx80-side-control-width) var(--tx80-oct-col-width) minmax(0, 1fr)",
+        gridTemplateRows: "minmax(var(--tx80-lower-perf-min), 1fr)",
+        gap: "var(--tx80-dock-gap)",
+        flex: playFocused ? 1 : undefined,
+        minHeight: playFocused ? 0 : "var(--tx80-lower-perf-min)",
+        alignItems: "stretch",
+        height: playFocused ? "100%" : undefined,
+      }}
     >
-      <PerformanceStrip orientation="vertical" fillHeight className="shrink-0" />
-      <OctaveSustainColumn />
+      <PitchColumn />
+      <ModColumn />
+      <OctaveSustainColumn fill />
       <Keyboard
         onNoteOn={onNoteOn}
         onNoteOff={onNoteOff}
@@ -60,7 +74,7 @@ export function PerformanceDock({
         minKeyWidth={policy.minKeyWidth}
         useDesktopSteps={policy.useDesktopSteps}
         heightClass={policy.keyHeightClass}
-        className="flex-1 min-h-0"
+        className="min-h-0 h-full self-stretch"
       />
     </div>
   );
@@ -72,15 +86,18 @@ export function PerformanceDock({
       data-tx80-geo-tier={policy.tier}
       className={`border-t border-[color:var(--hairline)] px-2 sm:px-4 pt-2 bg-[color:var(--panel)] flex min-w-0 ${shellClass}`}
       style={{
+        ...geo,
         paddingBottom: "max(env(safe-area-inset-bottom), 8px)",
         paddingLeft: "max(env(safe-area-inset-left), 0.5rem)",
         paddingRight: "max(env(safe-area-inset-right), 0.5rem)",
       }}
     >
       {playPortrait || playLandscape || playFocused ? (
-        <div className="flex-1 min-h-0 flex flex-col gap-1.5 w-full">
-          <Ribbon onPosition={onRibbonPosition} onRelease={onRibbonRelease} />
-          {sideColumnRow}
+          <div className="flex-1 min-h-0 flex flex-col gap-1.5 w-full">
+          <div className="shrink-0" data-tx80-ribbon-slot="true">
+            <Ribbon onPosition={onRibbonPosition} onRelease={onRibbonRelease} />
+          </div>
+          {lowerGrid}
         </div>
       ) : (
         <div className="flex flex-col gap-2 w-full min-w-0">
@@ -101,4 +118,66 @@ export function PerformanceDock({
       )}
     </section>
   );
+}
+
+/** Tier-tuned shared geometry (CSS custom properties on the dock). */
+function dockGeometryVars(
+  layout: ViewportLayout,
+  playFocused: boolean,
+): Record<string, string> {
+  const largePhonePortrait =
+    layout.isPhonePortrait && layout.tier === "phone-portrait-large";
+  const compactPhonePortrait =
+    layout.isPhonePortrait && layout.tier === "phone-portrait-compact";
+
+  if (layout.isPhonePortrait) {
+    return {
+      "--tx80-dock-gap": "0.5rem",
+      "--tx80-side-control-width": "2.75rem",
+      "--tx80-oct-col-width": "3.5rem",
+      "--tx80-ribbon-height": "2.75rem",
+      // Lower row fills remaining dock; min based on available height, not a tiny fixed strip
+      "--tx80-lower-perf-min": largePhonePortrait
+        ? playFocused
+          ? "min(52dvh, 28rem)"
+          : "14rem"
+        : compactPhonePortrait
+          ? playFocused
+            ? "min(48dvh, 22rem)"
+            : "12.5rem"
+          : "13rem",
+    };
+  }
+
+  if (layout.isPhoneLandscape || layout.isShortLandscape) {
+    return {
+      "--tx80-dock-gap": "0.4rem",
+      "--tx80-side-control-width": "2.5rem",
+      "--tx80-oct-col-width": "3.25rem",
+      "--tx80-ribbon-height": "2.25rem",
+      "--tx80-lower-perf-min": playFocused ? "min(58dvh, 14rem)" : "9.5rem",
+    };
+  }
+
+  if (layout.isTablet) {
+    return {
+      "--tx80-dock-gap": "0.6rem",
+      "--tx80-side-control-width": "3rem",
+      "--tx80-oct-col-width": "3.75rem",
+      "--tx80-ribbon-height": "3rem",
+      "--tx80-lower-perf-min": playFocused
+        ? layout.isPortrait
+          ? "min(42dvh, 22rem)"
+          : "min(48dvh, 16rem)"
+        : "12rem",
+    };
+  }
+
+  return {
+    "--tx80-dock-gap": "0.75rem",
+    "--tx80-side-control-width": "3rem",
+    "--tx80-oct-col-width": "4rem",
+    "--tx80-ribbon-height": "3rem",
+    "--tx80-lower-perf-min": playFocused ? "14rem" : "12rem",
+  };
 }

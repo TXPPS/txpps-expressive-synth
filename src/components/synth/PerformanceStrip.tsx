@@ -1,11 +1,11 @@
 import { useSynthStore } from "@/state/store";
-import { useRef, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
 /**
  * Pitch / mod performance controls.
- * Vertical strips fill the dock column height (TX27 landscape proportion).
- * Horizontal remains available for compact bars when explicitly requested.
+ * Fill-height vertical strips map the full column for precise travel.
  */
+
 export function PerformanceStrip({
   orientation = "vertical",
   className = "",
@@ -13,7 +13,6 @@ export function PerformanceStrip({
 }: {
   orientation?: "vertical" | "horizontal";
   className?: string;
-  /** When true, vertical wheels stretch to 100% of parent height. */
   fillHeight?: boolean;
 }) {
   const { pitchBend, modWheel, setPitchBend, setModWheel } = useSynthStore();
@@ -35,14 +34,10 @@ export function PerformanceStrip({
     );
   }
 
-  const wheelH = fillHeight
-    ? "h-full min-h-[8rem] sm:min-h-[10rem]"
-    : "h-[7.5rem] sm:h-[10.5rem] md:h-[12rem]";
-
   return (
     <div
       data-tx80-perf-wheels="vertical"
-      className={`flex gap-2 sm:gap-3 items-stretch shrink-0 ${fillHeight ? "h-full self-stretch" : "items-end"} ${className}`}
+      className={`flex gap-2 sm:gap-3 shrink-0 ${fillHeight ? "h-full min-h-0 self-stretch items-stretch" : "items-end"} ${className}`}
     >
       <WheelColumn label="PITCH" fill={fillHeight}>
         <VerticalStrip
@@ -51,7 +46,7 @@ export function PerformanceStrip({
           min={-1}
           max={1}
           centered
-          heightClass={wheelH}
+          fill={fillHeight}
           onChange={setPitchBend}
           onRelease={() => setPitchBend(0)}
         />
@@ -62,7 +57,7 @@ export function PerformanceStrip({
           value={modWheel}
           min={0}
           max={1}
-          heightClass={wheelH}
+          fill={fillHeight}
           onChange={setModWheel}
         />
       </WheelColumn>
@@ -70,18 +65,54 @@ export function PerformanceStrip({
   );
 }
 
+/** Individual pitch column for CSS-grid dock layouts. */
+export function PitchColumn({ className = "" }: { className?: string }) {
+  const pitchBend = useSynthStore((s) => s.pitchBend);
+  const setPitchBend = useSynthStore((s) => s.setPitchBend);
+  return (
+    <WheelColumn label="PITCH" fill className={className}>
+      <VerticalStrip
+        label="PITCH"
+        value={pitchBend}
+        min={-1}
+        max={1}
+        centered
+        fill
+        onChange={setPitchBend}
+        onRelease={() => setPitchBend(0)}
+      />
+    </WheelColumn>
+  );
+}
+
+/** Individual mod column for CSS-grid dock layouts. */
+export function ModColumn({ className = "" }: { className?: string }) {
+  const modWheel = useSynthStore((s) => s.modWheel);
+  const setModWheel = useSynthStore((s) => s.setModWheel);
+  return (
+    <WheelColumn label="MOD" fill className={className}>
+      <VerticalStrip label="MOD" value={modWheel} min={0} max={1} fill onChange={setModWheel} />
+    </WheelColumn>
+  );
+}
+
 function WheelColumn({
   label,
   children,
   fill,
+  className = "",
 }: {
   label: string;
   children: ReactNode;
   fill?: boolean;
+  className?: string;
 }) {
   return (
-    <div className={`flex flex-col items-center gap-1 ${fill ? "h-full min-h-0" : ""}`}>
-      <div className={fill ? "flex-1 min-h-0 w-full flex" : ""}>{children}</div>
+    <div
+      className={`flex flex-col items-center gap-1 min-h-0 ${fill ? "h-full" : ""} ${className}`}
+      data-tx80-wheel-col={label.toLowerCase()}
+    >
+      <div className={`w-full min-h-0 ${fill ? "flex-1 relative" : ""}`}>{children}</div>
       <span className="silkscreen text-[0.55rem] sm:text-[0.6rem] tracking-wide text-center w-full shrink-0">
         {label}
       </span>
@@ -95,7 +126,7 @@ function VerticalStrip({
   min,
   max,
   centered,
-  heightClass,
+  fill,
   onChange,
   onRelease,
 }: {
@@ -104,15 +135,20 @@ function VerticalStrip({
   min: number;
   max: number;
   centered?: boolean;
-  heightClass: string;
+  fill?: boolean;
   onChange: (v: number) => void;
   onRelease?: () => void;
 }) {
   const pct = ((value - min) / (max - min)) * 100;
-  return (
+
+  const track = (
     <div
       data-tx80-wheel={label.toLowerCase()}
-      className={`panel-sunken relative w-10 sm:w-12 ${heightClass} rounded-md flex flex-col items-center justify-end select-none touch-none tx80-perf-surface`}
+      className={`panel-sunken relative rounded-md flex flex-col items-center justify-end select-none touch-none tx80-perf-surface ${
+        fill
+          ? "h-full w-[var(--tx80-side-control-width,2.75rem)] min-h-[10rem]"
+          : "w-10 sm:w-12 h-[7.5rem] sm:h-[10.5rem] md:h-[12rem]"
+      }`}
       onPointerDown={(e) => {
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
         const rect = e.currentTarget.getBoundingClientRect();
@@ -151,6 +187,15 @@ function VerticalStrip({
       />
     </div>
   );
+
+  if (fill) {
+    return (
+      <div className="absolute inset-0 flex justify-center min-h-[10rem]" data-tx80-wheel-fill="true">
+        {track}
+      </div>
+    );
+  }
+  return track;
 }
 
 function HorizontalStrip({
@@ -170,13 +215,11 @@ function HorizontalStrip({
   onChange: (v: number) => void;
   onRelease?: () => void;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
   const pct = ((value - min) / (max - min)) * 100;
   return (
     <div className="flex items-center gap-2 min-w-0">
       <span className="silkscreen text-[0.55rem] w-10 shrink-0">{label}</span>
       <div
-        ref={ref}
         data-tx80-wheel={label.toLowerCase()}
         className="panel-sunken relative flex-1 min-w-0 h-11 rounded-md select-none touch-none tx80-perf-surface"
         onPointerDown={(e) => {
