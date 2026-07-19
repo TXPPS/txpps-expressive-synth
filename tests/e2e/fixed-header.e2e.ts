@@ -126,10 +126,12 @@ test.describe("fixed app header + portrait dock", () => {
 
     expect(pb && mb && kb && sb && lb && rb && ob).toBeTruthy();
 
-    // No wasted gap under ribbon — lower row (and wheel tops) start immediately below
+    // TX27-like breathing room under ribbon (8–16px tiered); controls stay co-aligned
     const ribbonBottom = rb!.y + rb!.height;
-    expect(pb!.y - ribbonBottom).toBeLessThanOrEqual(4);
-    // Pitch / Mod tops align with OCT+
+    const ribbonGap = pb!.y - ribbonBottom;
+    expect(ribbonGap).toBeGreaterThanOrEqual(7);
+    expect(ribbonGap).toBeLessThanOrEqual(18);
+    // Pitch / Mod tops align with OCT+ and keyboard (shared lower row)
     expect(Math.abs(pb!.y - ob!.y)).toBeLessThan(3);
     expect(Math.abs(mb!.y - ob!.y)).toBeLessThan(3);
 
@@ -198,7 +200,9 @@ test.describe("fixed app header + portrait dock", () => {
     const ribbon = await page.getByRole("slider", { name: "Ribbon controller" }).boundingBox();
     expect(pitch && oct && ribbon).toBeTruthy();
     expect(Math.abs(pitch!.y - oct!.y)).toBeLessThan(3);
-    expect(pitch!.y - (ribbon!.y + ribbon!.height)).toBeLessThanOrEqual(4);
+    const gap = pitch!.y - (ribbon!.y + ribbon!.height);
+    expect(gap).toBeGreaterThanOrEqual(7);
+    expect(gap).toBeLessThanOrEqual(18);
     await shot(page, "webkit-ipad-portrait-play");
   });
 
@@ -209,8 +213,12 @@ test.describe("fixed app header + portrait dock", () => {
     await noHorizontalOverflow(page);
     const pitch = await page.locator('[data-tx80-wheel="pitch"]').first().boundingBox();
     const oct = await page.getByRole("button", { name: "Octave up" }).boundingBox();
-    expect(pitch && oct).toBeTruthy();
+    const ribbon = await page.getByRole("slider", { name: "Ribbon controller" }).boundingBox();
+    expect(pitch && oct && ribbon).toBeTruthy();
     expect(Math.abs(pitch!.y - oct!.y)).toBeLessThan(3);
+    const gap = pitch!.y - (ribbon!.y + ribbon!.height);
+    expect(gap).toBeGreaterThanOrEqual(7);
+    expect(gap).toBeLessThanOrEqual(18);
     await shot(page, "webkit-ipad-landscape-play");
   });
 
@@ -221,8 +229,12 @@ test.describe("fixed app header + portrait dock", () => {
     await noHorizontalOverflow(page);
     const pitch = await page.locator('[data-tx80-wheel="pitch"]').first().boundingBox();
     const oct = await page.getByRole("button", { name: "Octave up" }).boundingBox();
-    expect(pitch && oct).toBeTruthy();
+    const ribbon = await page.getByRole("slider", { name: "Ribbon controller" }).boundingBox();
+    expect(pitch && oct && ribbon).toBeTruthy();
     expect(Math.abs(pitch!.y - oct!.y)).toBeLessThan(3);
+    const gap = pitch!.y - (ribbon!.y + ribbon!.height);
+    expect(gap).toBeGreaterThanOrEqual(7);
+    expect(gap).toBeLessThanOrEqual(18);
     await shot(page, "chromium-desktop-play");
   });
 
@@ -245,7 +257,9 @@ test.describe("fixed app header + portrait dock", () => {
     const rb = await ribbon.boundingBox();
     const ob = await octPlus.boundingBox();
     expect(pb && rb && ob).toBeTruthy();
-    expect(pb!.y - (rb!.y + rb!.height)).toBeLessThanOrEqual(4);
+    const gap = pb!.y - (rb!.y + rb!.height);
+    expect(gap).toBeGreaterThanOrEqual(7);
+    expect(gap).toBeLessThanOrEqual(18);
     expect(Math.abs(pb!.y - ob!.y)).toBeLessThan(3);
     expect(pb!.height).toBeGreaterThanOrEqual(160);
     await shot(page, "full-iphone-large-dock-aligned");

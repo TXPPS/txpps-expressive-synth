@@ -104,7 +104,11 @@ export function PerformanceDock({
       }}
     >
       {useCoordinatedGrid ? (
-        <div className="flex-1 min-h-0 flex flex-col gap-0 w-full">
+        <div
+          className="flex-1 min-h-0 flex flex-col w-full"
+          data-tx80-dock-stack="true"
+          style={{ gap: "var(--tx80-ribbon-gap, 0.5rem)" }}
+        >
           <div className="shrink-0" data-tx80-ribbon-slot="true">
             <Ribbon onPosition={onRibbonPosition} onRelease={onRibbonRelease} />
           </div>
@@ -144,6 +148,8 @@ function dockGeometryVars(
   if (layout.isPhonePortrait) {
     return {
       "--tx80-dock-gap": "0.5rem",
+      // Breathing room under ribbon (TX27-like); shared by all lower controls
+      "--tx80-ribbon-gap": compactPhonePortrait ? "0.5rem" : "0.625rem",
       "--tx80-side-control-width": "2.75rem",
       "--tx80-oct-col-width": "3.5rem",
       "--tx80-ribbon-height": "2.75rem",
@@ -163,6 +169,7 @@ function dockGeometryVars(
   if (layout.isPhoneLandscape || layout.isShortLandscape) {
     return {
       "--tx80-dock-gap": "0.4rem",
+      "--tx80-ribbon-gap": "0.5rem",
       "--tx80-side-control-width": "2.5rem",
       "--tx80-oct-col-width": "3.25rem",
       "--tx80-ribbon-height": "2.25rem",
@@ -173,6 +180,7 @@ function dockGeometryVars(
   if (layout.isTablet) {
     return {
       "--tx80-dock-gap": "0.6rem",
+      "--tx80-ribbon-gap": "0.75rem",
       "--tx80-side-control-width": "3rem",
       "--tx80-oct-col-width": "3.75rem",
       "--tx80-ribbon-height": "3rem",
@@ -186,6 +194,7 @@ function dockGeometryVars(
 
   return {
     "--tx80-dock-gap": "0.75rem",
+    "--tx80-ribbon-gap": "1rem",
     "--tx80-side-control-width": "3rem",
     "--tx80-oct-col-width": "4rem",
     "--tx80-ribbon-height": "3rem",

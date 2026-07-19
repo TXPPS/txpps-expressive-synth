@@ -137,6 +137,7 @@
   :root {
     --tx80-header-height: 3.25rem;
     --tx80-dock-gap: 0.5rem;
+    --tx80-ribbon-gap: 0.625rem;
     --tx80-side-control-width: 2.75rem;
     --tx80-oct-col-width: 3.5rem;
     --tx80-lower-perf-min: 12.5rem;

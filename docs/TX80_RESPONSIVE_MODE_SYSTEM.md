@@ -51,6 +51,7 @@ Shared CSS variables on the dock (tier-tuned):
 | `--tx80-side-control-width` | Pitch & Mod column width |
 | `--tx80-oct-col-width` | Octave / display / Sustain column |
 | `--tx80-ribbon-height` | Ribbon slot (documented target) |
+| `--tx80-ribbon-gap` | Vertical breathing room under ribbon (~8–16px by tier) |
 
 **PLAY lower row** = CSS Grid:
 

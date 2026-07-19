@@ -41,10 +41,11 @@ CSS variables (set on the dock, tuned per tier):
 - `--tx80-dock-gap`
 
 Pitch/Mod **interaction height** equals the full column height. Labels are
-overlaid **inside** the strip (TX27), not a separate row under the ribbon.
-PLAY uses `gap: 0` between ribbon and the lower grid so wheel tops sit flush
-with OCT+. Pitch spring-returns; Mod latches. Pointer capture / `touch-action`
-/ cancel & lostcapture clearing preserved.
+overlaid **inside** the strip (TX27), not a separate row. PLAY/FULL use
+`--tx80-ribbon-gap` (~8–16px by viewport tier) between ribbon and the lower
+grid so controls never touch the ribbon; Pitch / Mod / OCT+ / keyboard tops
+remain co-aligned. Pitch spring-returns; Mod latches. Pointer capture /
+`touch-action` / cancel & lostcapture clearing preserved.
 
 Sustain uses `flex-1` to consume remaining column height after Oct+/Oct−/display (≥ 44×44 CSS px).
 
