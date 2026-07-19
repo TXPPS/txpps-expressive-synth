@@ -93,7 +93,7 @@ export function PerformanceDock({
       }}
     >
       {playPortrait || playLandscape || playFocused ? (
-          <div className="flex-1 min-h-0 flex flex-col gap-1.5 w-full">
+        <div className="flex-1 min-h-0 flex flex-col gap-0 w-full">
           <div className="shrink-0" data-tx80-ribbon-slot="true">
             <Ribbon onPosition={onRibbonPosition} onRelease={onRibbonRelease} />
           </div>

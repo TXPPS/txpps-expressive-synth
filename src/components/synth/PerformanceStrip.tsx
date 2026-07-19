@@ -109,13 +109,20 @@ function WheelColumn({
 }) {
   return (
     <div
-      className={`flex flex-col items-center gap-1 min-h-0 ${fill ? "h-full" : ""} ${className}`}
+      className={`flex flex-col items-center min-h-0 ${fill ? "h-full gap-0" : "gap-1"} ${className}`}
       data-tx80-wheel-col={label.toLowerCase()}
     >
-      <div className={`w-full min-h-0 ${fill ? "flex-1 relative" : ""}`}>{children}</div>
-      <span className="silkscreen text-[0.55rem] sm:text-[0.6rem] tracking-wide text-center w-full shrink-0">
-        {label}
-      </span>
+      {/*
+        Fill mode: strip occupies the entire column (TX27). Label is painted
+        inside the strip — never a separate row that pushes the track down or
+        shortens pointer travel under the ribbon.
+      */}
+      <div className={`w-full min-h-0 ${fill ? "flex-1 relative h-full" : ""}`}>{children}</div>
+      {!fill && (
+        <span className="silkscreen text-[0.55rem] sm:text-[0.6rem] tracking-wide text-center w-full shrink-0">
+          {label}
+        </span>
+      )}
     </div>
   );
 }
@@ -146,7 +153,7 @@ function VerticalStrip({
       data-tx80-wheel={label.toLowerCase()}
       className={`panel-sunken relative rounded-md flex flex-col items-center justify-end select-none touch-none tx80-perf-surface ${
         fill
-          ? "h-full w-[var(--tx80-side-control-width,2.75rem)] min-h-[10rem]"
+          ? "h-full w-full min-h-0"
           : "w-10 sm:w-12 h-[7.5rem] sm:h-[10.5rem] md:h-[12rem]"
       }`}
       onPointerDown={(e) => {
@@ -185,13 +192,21 @@ function VerticalStrip({
           bottom: centered ? `calc(${pct}% - 1.5px)` : 0,
         }}
       />
+      {fill && (
+        <span
+          className="silkscreen absolute bottom-1 left-0 right-0 text-center text-[0.5rem] sm:text-[0.55rem] tracking-wide pointer-events-none text-[color:var(--silkscreen-dim)]"
+          aria-hidden
+        >
+          {label}
+        </span>
+      )}
     </div>
   );
 
   if (fill) {
     return (
-      <div className="absolute inset-0 flex justify-center min-h-[10rem]" data-tx80-wheel-fill="true">
-        {track}
+      <div className="absolute inset-0 flex justify-center min-h-0" data-tx80-wheel-fill="true">
+        <div className="h-full w-[var(--tx80-side-control-width,2.75rem)] max-w-full">{track}</div>
       </div>
     );
   }

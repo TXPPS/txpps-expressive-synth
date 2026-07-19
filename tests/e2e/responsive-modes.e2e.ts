@@ -118,7 +118,7 @@ test.describe("responsive mode matrix", () => {
                 expect(pitchBox && keyBox).toBeTruthy();
                 expect(Math.abs(pitchBox!.y - keyBox!.y)).toBeLessThan(8);
                 expect(Math.abs(pitchBox!.y + pitchBox!.height - (keyBox!.y + keyBox!.height))).toBeLessThan(
-                  48,
+                  12,
                 );
               }
             }

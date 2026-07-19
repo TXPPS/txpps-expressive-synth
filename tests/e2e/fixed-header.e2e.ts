@@ -109,6 +109,8 @@ test.describe("fixed app header + portrait dock", () => {
     const sustain = page.locator("[data-tx80-sustain], button[aria-label='Sustain']").first();
     const keyboard = page.locator("[data-tx80-keyboard]");
     const lower = page.locator("[data-tx80-dock-lower]");
+    const ribbon = page.getByRole("slider", { name: "Ribbon controller" });
+    const octPlus = page.getByRole("button", { name: "Octave up" });
 
     await expect(lower).toBeVisible();
     await expect(pitch).toBeVisible();
@@ -119,27 +121,34 @@ test.describe("fixed app header + portrait dock", () => {
     const kb = await keyboard.boundingBox();
     const sb = await sustain.boundingBox();
     const lb = await lower.boundingBox();
+    const rb = await ribbon.boundingBox();
+    const ob = await octPlus.boundingBox();
 
-    expect(pb && mb && kb && sb && lb).toBeTruthy();
+    expect(pb && mb && kb && sb && lb && rb && ob).toBeTruthy();
 
-    // Materially tall travel (≥ previous short-strip era ~120px; target ≥ 200 on large phone)
+    // No wasted gap under ribbon — lower row (and wheel tops) start immediately below
+    const ribbonBottom = rb!.y + rb!.height;
+    expect(pb!.y - ribbonBottom).toBeLessThanOrEqual(4);
+    // Pitch / Mod tops align with OCT+
+    expect(Math.abs(pb!.y - ob!.y)).toBeLessThan(3);
+    expect(Math.abs(mb!.y - ob!.y)).toBeLessThan(3);
+
+    // Full column travel (labels overlay inside — bottoms meet sustain/keyboard)
     expect(pb!.height).toBeGreaterThanOrEqual(200);
     expect(mb!.height).toBeGreaterThanOrEqual(200);
-    expect(pb!.height).toBeGreaterThanOrEqual(lb!.height * 0.55);
+    expect(pb!.height).toBeGreaterThanOrEqual(lb!.height * 0.92);
+    expect(Math.abs(pb!.y + pb!.height - (sb!.y + sb!.height))).toBeLessThan(8);
+    expect(Math.abs(pb!.y + pb!.height - (kb!.y + kb!.height))).toBeLessThan(8);
 
-    // Align tops/bottoms of lower regions (keyboard vs pitch track; label may sit below pitch)
     expect(Math.abs(pb!.y - kb!.y)).toBeLessThan(12);
     expect(Math.abs(mb!.y - kb!.y)).toBeLessThan(12);
 
-    // Sustain is a substantial touch target filling remaining column
     expect(sb!.width).toBeGreaterThanOrEqual(44);
     expect(sb!.height).toBeGreaterThanOrEqual(44);
     expect(sb!.height).toBeGreaterThanOrEqual(80);
 
-    // PLAY: no build footer reclaiming instrument height
     await expect(page.locator("[data-tx80-build-footer]")).toHaveCount(0);
 
-    // Pointer travel maps full strip height
     const travel = await pitch.evaluate((el) => {
       const r = el.getBoundingClientRect();
       return { h: r.height, top: r.top, bottom: r.bottom };
@@ -179,15 +188,41 @@ test.describe("fixed app header + portrait dock", () => {
     await shot(page, "webkit-iphone-landscape-play");
   });
 
-  test("tablet portrait PLAY dock alignment smoke", async ({ page }) => {
+  test("tablet portrait PLAY dock smoke", async ({ page }) => {
     await page.setViewportSize({ width: 768, height: 1024 });
     await hydrate(page);
     await setMode(page, "play");
     await noHorizontalOverflow(page);
     const pitch = await page.locator('[data-tx80-wheel="pitch"]').first().boundingBox();
-    const kb = await page.locator("[data-tx80-keyboard]").boundingBox();
-    expect(pitch && kb).toBeTruthy();
-    expect(pitch!.height).toBeGreaterThanOrEqual(140);
+    const oct = await page.getByRole("button", { name: "Octave up" }).boundingBox();
+    const ribbon = await page.getByRole("slider", { name: "Ribbon controller" }).boundingBox();
+    expect(pitch && oct && ribbon).toBeTruthy();
+    expect(Math.abs(pitch!.y - oct!.y)).toBeLessThan(3);
+    expect(pitch!.y - (ribbon!.y + ribbon!.height)).toBeLessThanOrEqual(4);
     await shot(page, "webkit-ipad-portrait-play");
+  });
+
+  test("tablet landscape PLAY dock smoke", async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await hydrate(page);
+    await setMode(page, "play");
+    await noHorizontalOverflow(page);
+    const pitch = await page.locator('[data-tx80-wheel="pitch"]').first().boundingBox();
+    const oct = await page.getByRole("button", { name: "Octave up" }).boundingBox();
+    expect(pitch && oct).toBeTruthy();
+    expect(Math.abs(pitch!.y - oct!.y)).toBeLessThan(3);
+    await shot(page, "webkit-ipad-landscape-play");
+  });
+
+  test("desktop PLAY dock smoke", async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await hydrate(page);
+    await setMode(page, "play");
+    await noHorizontalOverflow(page);
+    const pitch = await page.locator('[data-tx80-wheel="pitch"]').first().boundingBox();
+    const oct = await page.getByRole("button", { name: "Octave up" }).boundingBox();
+    expect(pitch && oct).toBeTruthy();
+    expect(Math.abs(pitch!.y - oct!.y)).toBeLessThan(3);
+    await shot(page, "chromium-desktop-play");
   });
 });

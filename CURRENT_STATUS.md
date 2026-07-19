@@ -21,6 +21,8 @@ git checkout main && git pull --ff-only origin main
   with shell `padding-top`. Scroll owner remains the **document**.
 - Safe-area: `padding-top: max(env(safe-area-inset-top), …)` on the fixed header.
 - Portrait PLAY: CSS Grid lower row — Pitch | Mod | Oct/Sus | Keyboard share one height.
+- Pitch/Mod labels overlay **inside** the strip (TX27); ribbon→lower `gap: 0` so wheel
+  tops sit flush with OCT+ and bottoms meet Sustain.
 - Sustain `flex-1` fills remaining control-column height.
 - Phone PLAY: build footer removed (tier/mode in Settings → ABOUT / Diagnostics).
 - Mobile WebKit Playwright project: `tests/e2e/fixed-header.e2e.ts`.
