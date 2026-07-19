@@ -1,9 +1,36 @@
 # TXPPS TX-80 — Current Status
 
-**Phase**: Reconciliation Gate 1 complete (clean baseline + dark engine
-transplant). Roadmap: `docs/TX80_NEXT_ROADMAP.md`; audit:
+**Phase**: Reconciliation Gate 2 complete (authoritative runtime
+switchover). Roadmap: `docs/TX80_NEXT_ROADMAP.md`; audit:
 `docs/TX80_DUAL_IMPLEMENTATION_AUDIT.md`.
-**Last update**: Gate 1 (2026-07-19)
+**Last update**: Gate 2 (2026-07-19)
+
+## Gate 2 — runtime switchover and voice ownership (COMPLETE, automated)
+
+Production audio now routes exclusively through the transplanted
+synth-core runtime: Zustand store → `mapping.ts` → `TX80ProductEngine` →
+`TX80Engine` → one AudioContext. `src/hooks/useAudioEngine.ts` was the
+single runtime-facing file replaced; UI, store, registry, routes and CSS
+are untouched (screenshot-verified). The Milestone-2 engine in
+`src/audio/` is **quarantined**: zero import paths, absent from the dev
+module graph and the production bundle (both e2e/grep-verified), retained
+unmodified for rollback and Gate 5 parity.
+
+All four blocker defects are gone with the retired engine, verified by a
+new 20-scenario Playwright suite (`tests/e2e/gate2-runtime.e2e.ts`):
+first-note preservation, cold fast-tap safety, same-key/alternating spam
+with oscillator-reap accounting, two-pointer same-note stacking with
+one-for-one release, slide/cancel/lostcapture/blur/hidden releases,
+generation-safe stealing at the polyphony cap, counted sustain, panic,
+dual-layer single-lifecycle coordination, duplicate-press guard, and the
+one-context/one-engine/no-old-engine proofs. Dual-layer synthesis is now
+audible by default (Layer II panel drives a real second layer).
+
+Checks: `npm ci` ✓ · typecheck ✓ · 28/28 unit ✓ · lint clean (changed
+files) ✓ · build ✓ · Playwright 20/20 ✓ · console clean.
+**Human validation still required** (audible quality, physical devices) —
+see `docs/TX80_GATE2_RUNTIME_SWITCHOVER.md` and the manual checkpoint.
+Details + rollback instructions: `docs/TX80_GATE2_RUNTIME_SWITCHOVER.md`.
 
 ## Gate 1 — clean authoritative baseline (COMPLETE)
 
