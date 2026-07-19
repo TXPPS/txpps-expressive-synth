@@ -1,5 +1,57 @@
 # TXPPS TX-80 — Current Status
 
+**Phase**: Reconciliation Gate 1 complete (clean baseline + dark engine
+transplant). Roadmap: `docs/TX80_NEXT_ROADMAP.md`; audit:
+`docs/TX80_DUAL_IMPLEMENTATION_AUDIT.md`.
+**Last update**: Gate 1 (2026-07-19)
+
+## Gate 1 — clean authoritative baseline (COMPLETE)
+
+Strategy A approved by Hunter: this repository/`main` is the permanent
+product home (approved UI, Zustand state, `src/state/params.ts` as the
+authoritative parameter source); the Claude implementation in
+`txpps/txpps-tx-80` is a **donor** of proven engine subsystems only.
+
+Done in this gate (no visible product behavior changed — the audible path
+is still the M2 `src/audio` engine until Gate 2):
+
+- **Preservation:** remote branches `archive/m2-copilot-audio` (pre-gate
+  `main` @ `ad15b8e`) and `reference/claude-tx80-96c97e2` (full donor
+  history @ its own SHA). A local annotated tag mirrors the archive branch;
+  the Git proxy in this environment rejects tag pushes, so branches are the
+  remote-preserved form.
+- **Dependency baseline repaired:** the out-of-sync `package-lock.json`
+  (broke `npm ci`) was regenerated; the stale `bun.lock` was removed.
+  **npm is the canonical package manager** for this repo. `npm ci` verified
+  in sync. Added `vitest` (devDependency) and `typecheck`/`test` scripts.
+- **Dev-server fix:** explicit IPv4 bind in `vite.config.ts` (the default
+  dual-stack listen crashed with `EAFNOSUPPORT` on IPv6-less hosts).
+- **Dark transplant:** donor runtime + engine copied to `src/synth-core/`
+  (SynthEngine contracts, SynthRuntime, TX-80 dual-layer engine/voices,
+  registry, presets, storage, MIDI, reverb IR). Compiled, lint-clean and
+  unit-tested here; **not yet imported by the app**. Full file-by-file
+  donor provenance (repo/branch/SHA + local modifications):
+  `src/synth-core/PROVENANCE.md`.
+- **Parameter mapping layer:** `src/synth-core/mapping.ts` translates the
+  authoritative UI registry ids/vocabularies into donor-engine ids
+  (direct/derived/unmapped, every unmapped entry with a reason and a
+  disposition gate). Enforced by `src/synth-core/mapping.test.ts`:
+  registry coverage is exact in both directions.
+- **Checks after this gate:** `npm run typecheck` clean ·
+  `npm run test` 28/28 · `npm run lint` clean on all new/changed files ·
+  `npm run build` green · dev-server behavior probe unchanged (Layer-I
+  audio via the old engine, first-note drop and stuck-voice defects still
+  present **by design** — they are retired with the engine at Gate 2).
+
+Known blockers intentionally NOT fixed in this gate (they disappear with
+the Gate 2 engine switchover, per the approved plan): stuck voices from
+uncancelled release ramps; never-invoked voice cleanup; cold-start
+first-note loss; unrecoverable failed initialization.
+
+---
+
+## Historical — Milestone 1 shell status (pre-reconciliation)
+
 **Milestone**: 1 of 7 — Responsive shell
 **Last update**: initial build
 
