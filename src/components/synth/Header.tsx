@@ -61,11 +61,14 @@ export function Header({ onAudioStart }: { onAudioStart: () => void }) {
   return (
     <header
       data-tx80-header="true"
-      className="flex items-center justify-between gap-2 px-2 py-1.5 sm:px-4 sm:py-3 border-b border-[color:var(--hairline)] shrink-0"
+      className="sticky top-0 z-50 flex items-center justify-between gap-2 px-2 py-1.5 sm:px-4 sm:py-2.5 border-b border-[color:var(--hairline)] shrink-0 bg-[color:var(--background)]"
       style={{
         paddingTop: "max(env(safe-area-inset-top), 0.35rem)",
         paddingLeft: "max(env(safe-area-inset-left), 0.5rem)",
         paddingRight: "max(env(safe-area-inset-right), 0.5rem)",
+        // Opaque overscroll so scrolling content never bleeds through
+        backgroundImage:
+          "linear-gradient(180deg, var(--background) 0%, color-mix(in oklab, var(--panel) 85%, var(--background)) 100%)",
       }}
     >
       <div className="flex items-baseline gap-1.5 min-w-0 shrink">

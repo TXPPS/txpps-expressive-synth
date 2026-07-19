@@ -23,11 +23,17 @@ Screenshots (gitignored): `qa/responsive-screenshots/`
 
 1. No horizontal page overflow  
 2. Header brand does not overlap mode switcher  
-3. Exactly one audio-start control  
-4. Autoplay banner absent  
-5. PLAY: dock visible, no editor, meaningful dock height  
-6. EDIT: no dock by default; SHOW KEYS / HIDE KEYS works  
-7. FULL: editor + dock  
+3. Sticky header (`position: sticky`)  
+4. Exactly one audio-start control  
+5. Autoplay banner absent  
+6. PLAY: tall Pitch/Mod (≥96px); portrait keys ≥160px  
+7. EDIT: no dock by default; SHOW KEYS / HIDE KEYS works  
+8. FULL: editor + dock  
+9. Quick patch list opens from patch name  
+10. Full library opens from LIBRARY; 18 factory rows; USER filter visible  
+11. Orientation preserves mode + patch  
+12. Voice stress: 500 events / 5 seeds (separate suite)  
+13. Screenshots under `qa/responsive-screenshots/`
 8. Preset browser opens; 18 factory rows; select + Escape  
 9. Orientation change preserves mode + patch  
 10. Settings / diagnostic terminal selectable  

@@ -93,14 +93,29 @@ test.describe("responsive mode matrix", () => {
             await expect(page.locator("[data-tx80-editor]")).toHaveCount(0);
             await expect(page.locator("[data-tx80-perf-dock='play']")).toBeVisible();
             await expect(page.locator("[data-tx80-keyboard]")).toBeVisible();
-            // No huge empty region: dock should occupy meaningful height
             const dock = await page.locator("[data-tx80-perf-dock='play']").boundingBox();
             expect(dock).toBeTruthy();
             expect(dock!.height).toBeGreaterThan(vp.height * 0.28);
             await expect(page.getByRole("slider", { name: "Ribbon controller" })).toBeVisible();
             await expect(page.getByRole("button", { name: "Sustain" }).first()).toBeVisible();
-            await expect(page.getByRole("slider", { name: "PITCH" }).first()).toBeVisible();
-            await expect(page.getByRole("slider", { name: "MOD" }).first()).toBeVisible();
+            const pitch = page.locator('[data-tx80-wheel="pitch"]').first();
+            const mod = page.locator('[data-tx80-wheel="mod"]').first();
+            await expect(pitch).toBeVisible();
+            await expect(mod).toBeVisible();
+            const pb = await pitch.boundingBox();
+            const kb = await page.locator("[data-tx80-keyboard]").boundingBox();
+            expect(pb && kb).toBeTruthy();
+            // Pitch/Mod must be meaningfully tall (≥ 96px) in PLAY
+            expect(pb!.height).toBeGreaterThanOrEqual(96);
+            // Portrait phone keys must not be stubby
+            if (vp.height > vp.width && vp.width <= 430) {
+              expect(kb!.height).toBeGreaterThanOrEqual(160);
+            }
+            // Sticky header
+            const headerPos = await page.locator("[data-tx80-header]").evaluate((el) =>
+              getComputedStyle(el).position,
+            );
+            expect(headerPos).toBe("sticky");
           }
 
           if (mode === "edit") {
@@ -129,8 +144,24 @@ test.describe("responsive mode matrix", () => {
 
       test("preset browser + orientation preserve", async ({ page }) => {
         await setMode(page, "play");
+
+        // Level 1 — quick list
         await page.locator("[data-tx80-preset-open]").click();
+        await expect(page.locator("[data-tx80-preset-quick]")).toBeVisible();
+        await page.keyboard.press("Escape");
+        await expect(page.locator("[data-tx80-preset-quick]")).toHaveCount(0);
+
+        // Level 2 — full library
+        await page.locator("[data-tx80-preset-library]").click();
         await expect(page.locator("[data-tx80-preset-browser]")).toBeVisible();
+
+        // Category filters must not clip USER
+        const filters = page.locator("[data-tx80-category-filters]");
+        await expect(filters.getByRole("button", { name: "USER" })).toBeVisible();
+        const userBox = await filters.getByRole("button", { name: "USER" }).boundingBox();
+        const filterBox = await filters.boundingBox();
+        expect(userBox && filterBox).toBeTruthy();
+        expect(userBox!.x + userBox!.width).toBeLessThanOrEqual(filterBox!.x + filterBox!.width + 2);
 
         const rows = page.locator("[data-tx80-preset-row]");
         await expect(rows).toHaveCount(18, { timeout: 5000 });
@@ -140,20 +171,17 @@ test.describe("responsive mode matrix", () => {
         await expect(page.locator("[data-tx80-preset-browser]")).toHaveCount(0);
         await expect(page.locator("[data-tx80-preset-open] .readout")).not.toHaveText(firstName);
 
-        // Re-open and Escape close
-        await page.locator("[data-tx80-preset-open]").click();
+        await page.locator("[data-tx80-preset-library]").click();
         await expect(page.locator("[data-tx80-preset-browser]")).toBeVisible();
         await page.keyboard.press("Escape");
         await expect(page.locator("[data-tx80-preset-browser]")).toHaveCount(0);
 
         const patchBefore = await page.locator("[data-tx80-preset-open] .readout").innerText();
         await setMode(page, "edit");
-        // Flip orientation by swapping viewport
         await page.setViewportSize({ width: vp.height, height: vp.width });
         await expect(page.locator(`[data-tx80-shell="edit"]`)).toBeVisible();
         await expect(page.locator("[data-tx80-preset-open] .readout")).toHaveText(patchBefore);
 
-        // One AudioContext after activation
         await setMode(page, "play");
         await page.locator("[data-tx80-audio-start]").click();
         await page.waitForTimeout(400);
@@ -162,7 +190,6 @@ test.describe("responsive mode matrix", () => {
             .__TX80_DIAG?.();
           return d?.contextsCreated ?? 0;
         });
-        // May be 0 if activate hasn't finished constructing yet; retry via key
         if (contexts === 0) {
           const key = page.locator("[data-midi]").first();
           if (await key.count()) {

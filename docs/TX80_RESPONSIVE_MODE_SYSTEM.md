@@ -1,6 +1,6 @@
 # TX-80 Responsive Mode System
 
-**Status:** shipped on `main` (post Gate 2 consolidation).
+**Status:** shipped on `main` (TX27 performance parity pass).
 
 ## Mode contracts
 
@@ -11,6 +11,10 @@
 | **FULL** | Complete workstation | Shown | Docked keyboard always |
 
 Mode is persisted in `localStorage` key `tx80-ui-mode`. Switching modes never recreates `AudioContext`, never resets the patch, and never remounts the synth engine.
+
+## Sticky header
+
+`Header` uses `position: sticky; top: 0; z-index: 50` with opaque enclosure background and `env(safe-area-inset-top)`. Remains visible while editor content scrolls.
 
 ## Viewport tiers
 
@@ -27,12 +31,15 @@ Uses width, height, orientation, and short-landscape detection (`height ≤ 560`
 
 Coordinated surface: ribbon · pitch · mod · octave · sustain · keyboard.
 
-- **Phone portrait PLAY:** horizontal octave/sustain bar → horizontal pitch/mod → ribbon → compact keyboard (min key width ~34px).
-- **Phone / short landscape PLAY:** ribbon above; pitch/mod + octave/sustain beside maximized keyboard.
-- **Desktop / tablet FULL:** classic side wheels + keyboard with side octave/sustain.
-- **EDIT audition:** compact fixed-height dock when SHOW KEYS is on.
+- **PLAY (all phones/tablets):** ribbon above; **tall vertical** Pitch/Mod filling keyboard height; octave/sustain column; keyboard with TX27 discrete white-key steps
+- **Phone portrait:** key bed `min-height ≈ 200px`, minKeyWidth 34 → typically **7–10** white keys
+- **Phone landscape:** broader range (10–14), dock fills viewport height
+- **EDIT audition:** reduced but intentional height via SHOW KEYS
+- See `docs/TX80_KEYBOARD_GEOMETRY.md`
 
-Orientation change releases active keyboard pointers safely; parameters and patch remain.
+## Patch selection
+
+Two levels — see `docs/TX80_PATCH_BROWSER_BEHAVIOR.md`.
 
 ## Audio start
 

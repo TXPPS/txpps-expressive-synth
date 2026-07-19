@@ -2,22 +2,20 @@ import { useMemo, useRef, useState, useEffect } from "react";
 import { useSynthStore } from "@/state/store";
 import { patchRuntimeDiag } from "@/lib/diagnostics/runtime";
 import { diagInfo } from "@/lib/diagnostics/buffer";
+import { whiteKeyCountForWidth } from "@/lib/keyboardGeometry";
 
 /**
  * TXPPS on-screen keyboard — multitouch ownership preserved.
- * Side octave/sustain controls are optional so PerformanceDock can rearrange.
+ * White-key count uses TX27 discrete RANGE_STEPS via whiteKeyCountForWidth.
  */
 
 interface Props {
   onNoteOn?: (midi: number, velocity: number) => void;
   onNoteOff?: (midi: number) => void;
-  /** When false, only the key bed is rendered (dock owns octave/sustain). */
   showSideControls?: boolean;
-  /** Preferred minimum white-key CSS width; drives visible range. */
   minKeyWidth?: number;
-  /** Explicit white-key count override (takes precedence over auto). */
-  whiteKeyCount?: number;
-  /** Height class for the key bed */
+  /** Prefer desktop [28,21,14,10,7] steps when width allows. */
+  useDesktopSteps?: boolean;
   heightClass?: string;
   className?: string;
 }
@@ -34,7 +32,7 @@ export function Keyboard({
   onNoteOff,
   showSideControls = true,
   minKeyWidth = 24,
-  whiteKeyCount,
+  useDesktopSteps = false,
   heightClass = "h-28 sm:h-36 md:h-40",
   className = "",
 }: Props) {
@@ -43,7 +41,7 @@ export function Keyboard({
   const setSustainPedal = useSynthStore((s) => s.setSustainPedal);
   const octave = useSynthStore((s) => s.keyboardOctave);
   const setKeyboardOctave = useSynthStore((s) => s.setKeyboardOctave);
-  const [autoWhiteCount, setAutoWhiteCount] = useState(14);
+  const [whiteCount, setWhiteCount] = useState(10);
   const pointerNotes = useRef<Map<number, number>>(new Map());
   const [active, setActive] = useState<Set<number>>(new Set());
   const bedRef = useRef<HTMLDivElement>(null);
@@ -55,16 +53,12 @@ export function Keyboard({
   useEffect(() => {
     const compute = () => {
       const bed = bedRef.current;
-      const w = bed?.clientWidth || window.innerWidth;
-      const h = window.innerHeight;
-      const landscape = window.innerWidth > h;
-      const byMin = Math.max(7, Math.floor(w / Math.max(minKeyWidth, 18)));
-      let fallback: number;
-      if (w < 480) fallback = landscape ? 14 : 10;
-      else if (w < 900) fallback = landscape ? 21 : 14;
-      else if (w < 1400) fallback = 21;
-      else fallback = 28;
-      setAutoWhiteCount(Math.min(byMin, fallback));
+      const measured = bed?.clientWidth ?? 0;
+      // Ignore pre-layout zero widths so we do not collapse to 7 keys permanently.
+      const w =
+        measured >= 40 ? measured : Math.max(320, window.innerWidth - (showSideControls ? 160 : 100));
+      const next = whiteKeyCountForWidth(w, minKeyWidth, useDesktopSteps);
+      setWhiteCount(next);
     };
     compute();
     window.addEventListener("resize", compute);
@@ -72,12 +66,15 @@ export function Keyboard({
     const el = bedRef.current;
     const ro = typeof ResizeObserver !== "undefined" && el ? new ResizeObserver(compute) : null;
     if (el && ro) ro.observe(el);
+    // Re-measure after layout
+    const raf = requestAnimationFrame(compute);
     return () => {
+      cancelAnimationFrame(raf);
       window.removeEventListener("resize", compute);
       window.removeEventListener("orientationchange", compute);
       ro?.disconnect();
     };
-  }, [minKeyWidth]);
+  }, [minKeyWidth, useDesktopSteps, showSideControls]);
 
   useEffect(() => {
     const onOrient = () => {
@@ -90,8 +87,6 @@ export function Keyboard({
     window.addEventListener("orientationchange", onOrient);
     return () => window.removeEventListener("orientationchange", onOrient);
   }, [onNoteOff]);
-
-  const whiteCount = whiteKeyCount ?? autoWhiteCount;
 
   const notes = useMemo(() => {
     const out: number[] = [];
@@ -160,7 +155,7 @@ export function Keyboard({
   const whites = notes.filter((n) => !isBlack(n));
 
   const sideControls = (
-    <div className="flex flex-col gap-1 shrink-0 w-14 sm:w-16">
+    <div className="flex flex-col gap-1 shrink-0 w-14 sm:w-16 self-stretch">
       <button
         type="button"
         onClick={() => setKeyboardOctave(Math.min(8, octave + 1))}
@@ -186,7 +181,7 @@ export function Keyboard({
       <button
         type="button"
         onClick={() => setSustainPedal(!sustainPedal)}
-        className={`mt-auto panel-sunken silkscreen-strong flex-1 min-h-[2.75rem] sm:min-h-[3.25rem] rounded-md text-[0.7rem] sm:text-xs tracking-wide border ${
+        className={`mt-auto panel-sunken silkscreen-strong flex-1 min-h-[2.75rem] rounded-md text-[0.7rem] sm:text-xs tracking-wide border ${
           sustainPedal
             ? "text-[color:var(--phosphor)] border-[color:var(--phosphor)] shadow-[0_0_12px_-2px_var(--phosphor-dim)]"
             : "text-[color:var(--silkscreen)] border-[color:var(--hairline-strong)]"
@@ -205,6 +200,7 @@ export function Keyboard({
       className={`tx80-perf-surface relative flex-1 min-w-0 ${heightClass} rounded-md overflow-hidden select-none touch-none bg-[color:var(--panel-sunken)]`}
       style={{ WebkitUserSelect: "none" }}
       data-tx80-keyboard="true"
+      data-tx80-white-keys={whiteCount}
       onPointerDown={(e) => {
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
         const m = findNoteFromPoint(e.clientX, e.clientY);
@@ -271,14 +267,16 @@ export function Keyboard({
   );
 
   return (
-    <div className={`flex items-stretch gap-2 min-w-0 ${className}`} data-tx80-keyboard-root="true">
+    <div
+      className={`flex items-stretch gap-2 min-w-0 ${className}`}
+      data-tx80-keyboard-root="true"
+    >
       {showSideControls && sideControls}
       {keyBed}
     </div>
   );
 }
 
-/** Compact octave / sustain column for PerformanceDock layouts. */
 export function OctaveSustainColumn({
   className = "",
   horizontal = false,
@@ -333,7 +331,7 @@ export function OctaveSustainColumn({
   }
 
   return (
-    <div className={`flex flex-col gap-1 shrink-0 w-[3.25rem] sm:w-16 ${className}`}>
+    <div className={`flex flex-col gap-1 shrink-0 w-[3.25rem] sm:w-16 self-stretch ${className}`}>
       <button
         type="button"
         onClick={() => setKeyboardOctave(Math.min(8, octave + 1))}

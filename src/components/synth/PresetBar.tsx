@@ -38,36 +38,43 @@ function isUserPatch(p: CatalogEntry): p is UserPatch {
 }
 
 export function PresetBar() {
-  const {
-    currentPreset,
-    setCurrentPreset,
-    patch,
-    loadPatch,
-    presetBrowserOpen,
-    setPresetBrowserOpen,
-    uiMode,
-  } = useSynthStore();
+  const currentPreset = useSynthStore((s) => s.currentPreset);
+  const setCurrentPreset = useSynthStore((s) => s.setCurrentPreset);
+  const patch = useSynthStore((s) => s.patch);
+  const loadPatch = useSynthStore((s) => s.loadPatch);
+  const presetQuickOpen = useSynthStore((s) => s.presetQuickOpen);
+  const setPresetQuickOpen = useSynthStore((s) => s.setPresetQuickOpen);
+  const presetBrowserOpen = useSynthStore((s) => s.presetBrowserOpen);
+  const setPresetBrowserOpen = useSynthStore((s) => s.setPresetBrowserOpen);
+  const uiMode = useSynthStore((s) => s.uiMode);
+
   const [userPatches, setUserPatches] = useState<UserPatch[]>([]);
   const [favorites, setFavorites] = useState<Set<string>>(() => new Set());
   const [ready, setReady] = useState(false);
+  const [recentIds, setRecentIds] = useState<string[]>([]);
   const layout = useViewportLayout();
+  const stripRef = useRef<HTMLDivElement>(null);
 
   const catalog = useMemo(() => allBrowsablePatches(userPatches), [userPatches]);
 
   const applyPatchById = useCallback(
-    (id: string, closeBrowser = true) => {
+    (id: string, opts?: { closeQuick?: boolean; closeLibrary?: boolean }) => {
+      const closeQuick = opts?.closeQuick ?? true;
+      const closeLibrary = opts?.closeLibrary ?? true;
       const factory = findFactoryPatch(id);
       if (factory) {
         loadPatch(factory.values);
         setCurrentPreset(toPresetMeta(factory, "factory"));
         saveLastPresetId(id);
+        setRecentIds((r) => [id, ...r.filter((x) => x !== id)].slice(0, 8));
         patchRuntimeDiag({
           currentPatchId: factory.id,
           currentPatchName: factory.name,
           patchSource: "factory",
         });
         diagInfo("PATCH", `load factory ${factory.name}`);
-        if (closeBrowser) setPresetBrowserOpen(false);
+        if (closeQuick) setPresetQuickOpen(false);
+        if (closeLibrary) setPresetBrowserOpen(false);
         return;
       }
       const user = userPatches.find((p) => p.id === id);
@@ -75,18 +82,26 @@ export function PresetBar() {
         loadPatch(user.values);
         setCurrentPreset(toPresetMeta(user, "user"));
         saveLastPresetId(id);
+        setRecentIds((r) => [id, ...r.filter((x) => x !== id)].slice(0, 8));
         patchRuntimeDiag({
           currentPatchId: user.id,
           currentPatchName: user.name,
           patchSource: "user",
         });
         diagInfo("PATCH", `load user ${user.name}`);
-        if (closeBrowser) setPresetBrowserOpen(false);
+        if (closeQuick) setPresetQuickOpen(false);
+        if (closeLibrary) setPresetBrowserOpen(false);
       } else {
         diagWarn("PATCH", `preset not found ${id}`);
       }
     },
-    [loadPatch, setCurrentPreset, setPresetBrowserOpen, userPatches],
+    [
+      loadPatch,
+      setCurrentPreset,
+      setPresetBrowserOpen,
+      setPresetQuickOpen,
+      userPatches,
+    ],
   );
 
   useEffect(() => {
@@ -110,17 +125,14 @@ export function PresetBar() {
       }
     }
     setReady(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate once
   }, []);
 
   const step = (dir: -1 | 1) => {
     if (!catalog.length) return;
-    const idx = Math.max(
-      0,
-      catalog.findIndex((p) => p.id === currentPreset?.id),
-    );
+    const idx = Math.max(0, catalog.findIndex((p) => p.id === currentPreset?.id));
     const next = catalog[(idx + dir + catalog.length) % catalog.length]!;
-    applyPatchById(next.id, false);
+    applyPatchById(next.id, { closeQuick: true, closeLibrary: true });
   };
 
   const toggleFavorite = () => {
@@ -158,20 +170,31 @@ export function PresetBar() {
       diagWarn("PATCH", "restore factory — not a factory patch");
       return;
     }
-    applyPatchById(factory.id, false);
+    applyPatchById(factory.id, { closeQuick: false, closeLibrary: false });
     diagInfo("PATCH", `restored factory ${factory.name}`);
   };
 
   const isFav = currentPreset ? favorites.has(currentPreset.id) : false;
   const compact = layout.isNarrow || uiMode === "play";
+  const patchIndex = Math.max(0, catalog.findIndex((p) => p.id === currentPreset?.id));
+  const patchCountLabel =
+    catalog.length > 0 ? `${patchIndex + 1}/${catalog.length}` : "—";
+
+  const openQuick = () => {
+    setPresetBrowserOpen(false);
+    setPresetQuickOpen(!presetQuickOpen);
+  };
+
+  const openLibrary = () => {
+    setPresetQuickOpen(false);
+    setPresetBrowserOpen(true);
+  };
 
   return (
-    <>
+    <div ref={stripRef} className="relative shrink-0 z-40" data-tx80-preset-strip="true">
       <div
         data-tx80-preset-bar="true"
-        className={`panel-sunken mx-2 sm:mx-4 my-1.5 sm:my-2 px-2 sm:px-3 py-1.5 sm:py-2 flex items-center gap-1.5 sm:gap-3 shrink-0 ${
-          compact ? "gap-1" : ""
-        }`}
+        className="panel-sunken mx-2 sm:mx-4 my-1.5 sm:my-2 px-2 sm:px-3 py-1.5 sm:py-2 flex items-center gap-1 sm:gap-2"
       >
         <button
           type="button"
@@ -186,23 +209,38 @@ export function PresetBar() {
         <button
           type="button"
           data-tx80-preset-open="true"
-          onClick={() => setPresetBrowserOpen(true)}
+          onClick={openQuick}
           className="flex-1 min-w-0 text-left rounded-md px-1 py-0.5 hover:bg-[color:var(--panel)]/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[color:var(--phosphor)]"
-          aria-haspopup="dialog"
-          aria-expanded={presetBrowserOpen}
-          aria-label={`Open patch browser. Current patch ${currentPreset?.name ?? "init"}`}
+          aria-haspopup="listbox"
+          aria-expanded={presetQuickOpen}
+          aria-label={`Quick patch list. Current ${currentPreset?.name ?? "init"}`}
         >
-          <div className="silkscreen text-[0.55rem]">PATCH</div>
+          <div className="flex items-baseline gap-2 min-w-0">
+            <div className="silkscreen text-[0.55rem] shrink-0">PATCH</div>
+            {!compact && (
+              <div className="silkscreen text-[0.55rem] text-[color:var(--phosphor)] shrink-0">
+                {patchCountLabel}
+              </div>
+            )}
+          </div>
           <div className="readout truncate text-sm sm:text-lg font-semibold">
             {currentPreset?.name ?? "— init —"}
           </div>
-          {!compact && (
-            <div className="silkscreen truncate text-[0.55rem]">
-              {currentPreset
-                ? `${currentPreset.category} · ${currentPreset.source.toUpperCase()}`
-                : "tap to browse"}
-            </div>
-          )}
+          <div className="silkscreen truncate text-[0.55rem]">
+            {currentPreset
+              ? `${currentPreset.category} · ${currentPreset.source.toUpperCase()}${compact ? ` · ${patchCountLabel}` : ""}`
+              : "tap for quick list"}
+          </div>
+        </button>
+
+        <button
+          type="button"
+          data-tx80-preset-library="true"
+          onClick={openLibrary}
+          className="silkscreen-strong text-[color:var(--silkscreen)] hover:text-[color:var(--phosphor)] shrink-0 text-[0.55rem] border border-[color:var(--hairline)] rounded px-1.5 py-1 min-h-11"
+          aria-label="Open full patch library"
+        >
+          {compact ? "LIB" : "LIBRARY"}
         </button>
 
         <button
@@ -237,12 +275,27 @@ export function PresetBar() {
         </button>
       </div>
 
+      {presetQuickOpen && (
+        <PresetQuickList
+          catalog={catalog}
+          favorites={favorites}
+          recentIds={recentIds}
+          currentId={currentPreset?.id ?? null}
+          anchorRef={stripRef}
+          isNarrow={layout.isNarrow}
+          isPortrait={layout.isPortrait}
+          onSelect={(id) => applyPatchById(id)}
+          onOpenLibrary={openLibrary}
+          onClose={() => setPresetQuickOpen(false)}
+        />
+      )}
+
       {presetBrowserOpen && (
-        <PresetBrowser
+        <PresetLibrary
           catalog={catalog}
           favorites={favorites}
           currentId={currentPreset?.id ?? null}
-          onSelect={(id) => applyPatchById(id, true)}
+          onSelect={(id) => applyPatchById(id)}
           onToggleFavorite={(id) => {
             const next = new Set(favorites);
             if (next.has(id)) next.delete(id);
@@ -257,11 +310,179 @@ export function PresetBar() {
           isPortrait={layout.isPortrait}
         />
       )}
-    </>
+    </div>
   );
 }
 
-function PresetBrowser({
+function PresetQuickList({
+  catalog,
+  favorites,
+  recentIds,
+  currentId,
+  anchorRef,
+  isNarrow,
+  isPortrait,
+  onSelect,
+  onOpenLibrary,
+  onClose,
+}: {
+  catalog: CatalogEntry[];
+  favorites: Set<string>;
+  recentIds: string[];
+  currentId: string | null;
+  anchorRef: React.RefObject<HTMLDivElement | null>;
+  isNarrow: boolean;
+  isPortrait: boolean;
+  onSelect: (id: string) => void;
+  onOpenLibrary: () => void;
+  onClose: () => void;
+}) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const rowRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  const sections = useMemo(() => {
+    const byId = new Map(catalog.map((p) => [p.id, p]));
+    const toRow = (id: string) => {
+      const p = byId.get(id);
+      if (!p) return null;
+      return {
+        id: p.id,
+        name: p.name,
+        category: p.category,
+        source: isUserPatch(p) ? "USER" : "FACTORY",
+        fav: favorites.has(p.id),
+        current: p.id === currentId,
+      };
+    };
+    const seen = new Set<string>();
+    const recent = recentIds
+      .filter((id) => id !== currentId)
+      .map(toRow)
+      .filter((r): r is NonNullable<typeof r> => r !== null)
+      .slice(0, 3);
+    for (const r of recent) seen.add(r.id);
+    const favs = [...favorites]
+      .filter((id) => !seen.has(id) && id !== currentId)
+      .map(toRow)
+      .filter((r): r is NonNullable<typeof r> => r !== null)
+      .slice(0, 3);
+    const idx = Math.max(0, catalog.findIndex((p) => p.id === currentId));
+    const windowSize = Math.min(6, catalog.length);
+    const start = Math.max(0, Math.min(idx - 2, catalog.length - windowSize));
+    const nearby = catalog
+      .slice(start, start + windowSize)
+      .map((p) => toRow(p.id))
+      .filter((r): r is NonNullable<typeof r> => r !== null);
+    return [
+      { title: "RECENT", rows: recent },
+      { title: "FAVORITES", rows: favs },
+      { title: "NEARBY", rows: nearby },
+    ].filter((s) => s.rows.length > 0);
+  }, [catalog, currentId, favorites, recentIds]);
+
+  const flat = sections.flatMap((s) => s.rows);
+
+  useEffect(() => {
+    const i = Math.max(0, flat.findIndex((r) => r.current));
+    rowRefs.current[i]?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- focus once on open
+  }, []);
+
+  useEffect(() => {
+    const onPtr = (e: PointerEvent) => {
+      if (!anchorRef.current?.contains(e.target as Node)) onClose();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener("pointerdown", onPtr);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("pointerdown", onPtr);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [anchorRef, onClose]);
+
+  const sheet = isNarrow && isPortrait;
+
+  return (
+    <div
+      ref={panelRef}
+      data-tx80-preset-quick="true"
+      role="listbox"
+      aria-label="Quick patch list"
+      className={
+        sheet
+          ? "fixed inset-x-0 bottom-0 z-[65] enclosure border-t border-[color:var(--hairline)] rounded-t-xl max-h-[min(55dvh,420px)] flex flex-col"
+          : "absolute left-2 right-2 sm:left-4 sm:right-auto sm:w-[min(360px,92vw)] top-full mt-1 z-[65] enclosure border border-[color:var(--hairline)] rounded-lg max-h-[min(45vh,340px)] flex flex-col shadow-lg"
+      }
+      style={
+        sheet
+          ? { paddingBottom: "max(env(safe-area-inset-bottom), 8px)" }
+          : undefined
+      }
+    >
+      <div className="px-3 py-2 border-b border-[color:var(--hairline)] flex items-center justify-between shrink-0">
+        <span className="silkscreen-strong text-[color:var(--phosphor)]">QUICK PATCHES</span>
+        <button
+          type="button"
+          onClick={onClose}
+          className="silkscreen-strong text-[0.55rem] min-h-10 px-2"
+          aria-label="Close quick patch list"
+        >
+          CLOSE
+        </button>
+      </div>
+      <div className="flex-1 min-h-0 overflow-y-auto px-2 py-1">
+        {sections.map((sec) => (
+          <div key={sec.title} className="mb-2">
+            <div className="silkscreen px-2 py-1 text-[0.5rem]">{sec.title}</div>
+            {sec.rows.map((row) => {
+              const flatIdx = flat.findIndex((r) => r.id === row.id);
+              return (
+                <button
+                  key={`${sec.title}-${row.id}`}
+                  ref={(el) => {
+                    rowRefs.current[flatIdx] = el;
+                  }}
+                  type="button"
+                  role="option"
+                  aria-selected={row.current}
+                  onClick={() => onSelect(row.id)}
+                  className={`w-full text-left px-3 py-2.5 min-h-12 rounded-md mb-0.5 border ${
+                    row.current
+                      ? "border-[color:var(--phosphor)] bg-[color:var(--panel-sunken)]"
+                      : "border-transparent hover:bg-[color:var(--panel-sunken)]/60"
+                  }`}
+                >
+                  <div className="readout text-sm truncate">{row.name}</div>
+                  <div className="silkscreen text-[0.5rem]">
+                    {row.category} · {row.source}
+                    {row.fav ? " · ★" : ""}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+      <div className="shrink-0 border-t border-[color:var(--hairline)] p-2">
+        <button
+          type="button"
+          onClick={onOpenLibrary}
+          className="w-full silkscreen-strong border border-[color:var(--phosphor)] text-[color:var(--phosphor)] rounded-md py-2.5 min-h-11 text-[0.65rem]"
+        >
+          OPEN PATCH LIBRARY
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PresetLibrary({
   catalog,
   favorites,
   currentId,
@@ -291,6 +512,11 @@ function PresetBrowser({
 
   useEffect(() => {
     closeBtnRef.current?.focus();
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
   }, []);
 
   useEffect(() => {
@@ -331,7 +557,7 @@ function PresetBrowser({
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Patch browser"
+        aria-label="Patch library"
         tabIndex={-1}
         className={
           isNarrow
@@ -342,26 +568,16 @@ function PresetBrowser({
               } enclosure border border-[color:var(--hairline)] flex flex-col outline-none`
             : "absolute inset-0 m-auto enclosure border border-[color:var(--hairline)] flex flex-col outline-none w-[min(720px,94vw)] h-[min(640px,90dvh)] rounded-lg"
         }
-        style={
-          isNarrow
-            ? {
-                paddingTop: "max(env(safe-area-inset-top), 8px)",
-                paddingBottom: "max(env(safe-area-inset-bottom), 8px)",
-                paddingLeft: "max(env(safe-area-inset-left), 8px)",
-                paddingRight: "max(env(safe-area-inset-right), 8px)",
-              }
-            : undefined
-        }
-        onKeyDown={(e) => {
-          if (e.key === "Escape") {
-            e.preventDefault();
-            onClose();
-          }
+        style={{
+          paddingTop: "max(env(safe-area-inset-top), 8px)",
+          paddingBottom: "max(env(safe-area-inset-bottom), 8px)",
+          paddingLeft: "max(env(safe-area-inset-left), 8px)",
+          paddingRight: "max(env(safe-area-inset-right), 8px)",
         }}
       >
         <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-[color:var(--hairline)] shrink-0">
           <div>
-            <div className="silkscreen-strong text-[color:var(--phosphor)]">PATCH BROWSER</div>
+            <div className="silkscreen-strong text-[color:var(--phosphor)]">PATCH LIBRARY</div>
             <div className="silkscreen text-[0.55rem]">
               {filtered.length} shown · {factoryCount} factory
             </div>
@@ -371,7 +587,7 @@ function PresetBrowser({
             type="button"
             onClick={onClose}
             className="silkscreen-strong border border-[color:var(--hairline)] rounded-md px-3 py-2 min-h-11"
-            aria-label="Close patch browser"
+            aria-label="Close patch library"
           >
             CLOSE
           </button>
@@ -386,13 +602,19 @@ function PresetBrowser({
             className="w-full panel-sunken rounded-md px-3 py-2 text-sm text-[color:var(--foreground)] bg-[color:var(--panel-sunken)] outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--phosphor)]"
             aria-label="Search patches"
           />
-          <div className="flex gap-1 overflow-x-auto pb-1">
+          {/* Wrap intentionally — never clip the last category chip */}
+          <div
+            className="flex flex-wrap gap-1.5 content-start"
+            data-tx80-category-filters="true"
+            role="toolbar"
+            aria-label="Patch categories"
+          >
             {BROWSER_CATEGORIES.map((c) => (
               <button
                 key={c}
                 type="button"
                 onClick={() => setFilter(c)}
-                className={`silkscreen-strong shrink-0 rounded-md border px-2 py-1.5 text-[0.55rem] min-h-10 ${
+                className={`silkscreen-strong shrink-0 rounded-md border px-2.5 py-1.5 text-[0.55rem] min-h-10 ${
                   filter === c
                     ? "border-[color:var(--phosphor)] text-[color:var(--phosphor)]"
                     : "border-[color:var(--hairline)] text-[color:var(--silkscreen-dim)]"
@@ -402,7 +624,7 @@ function PresetBrowser({
               </button>
             ))}
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={onSave}

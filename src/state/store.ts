@@ -35,6 +35,10 @@ interface Store {
   // Preset
   currentPreset: PresetMeta | null;
   setCurrentPreset: (p: PresetMeta | null) => void;
+  /** Level 1 — compact quick patch list */
+  presetQuickOpen: boolean;
+  setPresetQuickOpen: (v: boolean) => void;
+  /** Level 2 — full patch library */
   presetBrowserOpen: boolean;
   setPresetBrowserOpen: (v: boolean) => void;
 
@@ -91,8 +95,14 @@ export const useSynthStore = create<Store>((set) => ({
 
   currentPreset: null,
   setCurrentPreset: (p) => set({ currentPreset: p }),
+  presetQuickOpen: false,
+  setPresetQuickOpen: (v) => set({ presetQuickOpen: v }),
   presetBrowserOpen: false,
-  setPresetBrowserOpen: (v) => set({ presetBrowserOpen: v }),
+  setPresetBrowserOpen: (v) =>
+    set({
+      presetBrowserOpen: v,
+      ...(v ? { presetQuickOpen: false } : {}),
+    }),
 
   pitchBend: 0,
   modWheel: 0,

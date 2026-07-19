@@ -1,15 +1,16 @@
 # TX-80 Control Connection Audit (Gate 2)
 
-Audit date: post responsive mode system on `main`.
+Audit date: post TX27 performance parity on `main`.
 Authority: product as shipped on **`main`**.
 
 | Control | Status | Notes |
 |---------|--------|-------|
-| Header FULL/EDIT/PLAY | CONNECTED | Distinct layout contracts; persisted `tx80-ui-mode` |
+| Header FULL/EDIT/PLAY | CONNECTED | Sticky header; persisted `tx80-ui-mode` |
 | Header READY / START | CONNECTED | Single audio-start control (banner removed) |
 | Header PANIC | CONNECTED | Clears voices, ribbon, sustain |
 | Header SETTINGS | CONNECTED | Modal with SYSTEM / AUDIO / MIDI / DIAGNOSTICS / ABOUT |
-| Patch name (opens browser) | CONNECTED | Overlay/sheet; categories + search |
+| Patch name (quick list) | CONNECTED | Level 1 TX27-style quick list |
+| Patch LIBRARY | CONNECTED | Level 2 full library; wrapping category chips |
 | Patch prev/next | CONNECTED | 18 factory + user |
 | Patch SAVE | CONNECTED | localStorage user presets |
 | Patch favorite | CONNECTED | local favorite set |

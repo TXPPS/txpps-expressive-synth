@@ -3,14 +3,18 @@ import { useRef, type ReactNode } from "react";
 
 /**
  * Pitch / mod performance controls.
- * Vertical (default) for side docks; horizontal for phone-portrait PLAY.
+ * Vertical strips fill the dock column height (TX27 landscape proportion).
+ * Horizontal remains available for compact bars when explicitly requested.
  */
 export function PerformanceStrip({
   orientation = "vertical",
   className = "",
+  fillHeight = false,
 }: {
   orientation?: "vertical" | "horizontal";
   className?: string;
+  /** When true, vertical wheels stretch to 100% of parent height. */
+  fillHeight?: boolean;
 }) {
   const { pitchBend, modWheel, setPitchBend, setModWheel } = useSynthStore();
 
@@ -31,31 +35,54 @@ export function PerformanceStrip({
     );
   }
 
+  const wheelH = fillHeight
+    ? "h-full min-h-[8rem] sm:min-h-[10rem]"
+    : "h-[7.5rem] sm:h-[10.5rem] md:h-[12rem]";
+
   return (
-    <div className={`flex gap-3 sm:gap-4 items-end shrink-0 pr-1 ${className}`}>
-      <WheelColumn label="PITCH">
+    <div
+      data-tx80-perf-wheels="vertical"
+      className={`flex gap-2 sm:gap-3 items-stretch shrink-0 ${fillHeight ? "h-full self-stretch" : "items-end"} ${className}`}
+    >
+      <WheelColumn label="PITCH" fill={fillHeight}>
         <VerticalStrip
           label="PITCH"
           value={pitchBend}
           min={-1}
           max={1}
           centered
+          heightClass={wheelH}
           onChange={setPitchBend}
           onRelease={() => setPitchBend(0)}
         />
       </WheelColumn>
-      <WheelColumn label="MOD">
-        <VerticalStrip label="MOD" value={modWheel} min={0} max={1} onChange={setModWheel} />
+      <WheelColumn label="MOD" fill={fillHeight}>
+        <VerticalStrip
+          label="MOD"
+          value={modWheel}
+          min={0}
+          max={1}
+          heightClass={wheelH}
+          onChange={setModWheel}
+        />
       </WheelColumn>
     </div>
   );
 }
 
-function WheelColumn({ label, children }: { label: string; children: ReactNode }) {
+function WheelColumn({
+  label,
+  children,
+  fill,
+}: {
+  label: string;
+  children: ReactNode;
+  fill?: boolean;
+}) {
   return (
-    <div className="flex flex-col items-center gap-1.5">
-      {children}
-      <span className="silkscreen text-[0.55rem] sm:text-[0.6rem] tracking-wide text-center w-full">
+    <div className={`flex flex-col items-center gap-1 ${fill ? "h-full min-h-0" : ""}`}>
+      <div className={fill ? "flex-1 min-h-0 w-full flex" : ""}>{children}</div>
+      <span className="silkscreen text-[0.55rem] sm:text-[0.6rem] tracking-wide text-center w-full shrink-0">
         {label}
       </span>
     </div>
@@ -68,6 +95,7 @@ function VerticalStrip({
   min,
   max,
   centered,
+  heightClass,
   onChange,
   onRelease,
 }: {
@@ -76,13 +104,15 @@ function VerticalStrip({
   min: number;
   max: number;
   centered?: boolean;
+  heightClass: string;
   onChange: (v: number) => void;
   onRelease?: () => void;
 }) {
   const pct = ((value - min) / (max - min)) * 100;
   return (
     <div
-      className="panel-sunken relative w-9 sm:w-11 h-[4.5rem] sm:h-28 rounded-md flex flex-col items-center justify-end select-none touch-none tx80-perf-surface"
+      data-tx80-wheel={label.toLowerCase()}
+      className={`panel-sunken relative w-10 sm:w-12 ${heightClass} rounded-md flex flex-col items-center justify-end select-none touch-none tx80-perf-surface`}
       onPointerDown={(e) => {
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
         const rect = e.currentTarget.getBoundingClientRect();
@@ -105,6 +135,7 @@ function VerticalStrip({
         onRelease?.();
       }}
       onPointerCancel={() => onRelease?.()}
+      onLostPointerCapture={() => onRelease?.()}
       role="slider"
       aria-label={label}
       aria-valuemin={min}
@@ -146,7 +177,8 @@ function HorizontalStrip({
       <span className="silkscreen text-[0.55rem] w-10 shrink-0">{label}</span>
       <div
         ref={ref}
-        className="panel-sunken relative flex-1 min-w-0 h-10 rounded-md select-none touch-none tx80-perf-surface"
+        data-tx80-wheel={label.toLowerCase()}
+        className="panel-sunken relative flex-1 min-w-0 h-11 rounded-md select-none touch-none tx80-perf-surface"
         onPointerDown={(e) => {
           (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
           const rect = e.currentTarget.getBoundingClientRect();
@@ -169,6 +201,7 @@ function HorizontalStrip({
           onRelease?.();
         }}
         onPointerCancel={() => onRelease?.()}
+        onLostPointerCapture={() => onRelease?.()}
         role="slider"
         aria-label={label}
         aria-valuemin={min}

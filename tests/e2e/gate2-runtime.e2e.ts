@@ -317,11 +317,19 @@ test("hidden visibility releases held notes", async ({ page }) => {
 // ── 13+14 · Voice stealing; releasing a stolen press is generation-safe ────
 test("polyphony cap steals oldest; releasing the stolen press harms nothing", async ({ page }) => {
   await warmUp(page);
-  // Oldest press = mouse on C4. Then 8 sustained touch presses exceed the
-  // default 8-voice polyphony, stealing the mouse voice.
-  await mouseHold(page, 60);
+  const visible = await page.evaluate(() =>
+    [...document.querySelectorAll("[data-midi]")]
+      .map((el) => Number(el.getAttribute("data-midi")))
+      .filter((n, i, a) => Number.isFinite(n) && a.indexOf(n) === i)
+      .sort((a, b) => a - b),
+  );
+  expect(visible.length).toBeGreaterThanOrEqual(9);
+  const held = visible[0]!;
+  const whiteMidis = visible.slice(1, 9);
+  // Oldest press = mouse on first visible key. Then 8 sustained touch presses
+  // exceed the default 8-voice polyphony, stealing the mouse voice.
+  await mouseHold(page, held);
   const cdp = await page.context().newCDPSession(page);
-  const whiteMidis = [62, 64, 65, 67, 69, 71, 72, 74];
   const points = [];
   for (const [i, midi] of whiteMidis.entries()) {
     const { x, y } = await keyCenter(page, midi);
