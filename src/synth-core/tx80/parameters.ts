@@ -467,6 +467,7 @@ export const TX80_PARAMETER_DEFINITIONS: readonly Tx80ParameterDefinition[] = [
   ),
   numeric("master.volume", "Master Volume", "master.volume", 0.7, 0, 1, 0.001, "Master"),
   numeric("master.balance", "Layer Balance", "master.balance", 0, -1, 1, 0.001, "Master"),
+  numeric("master.tune", "Master Tune", "master.tune", 440, 415, 466, 0.1, "Master", "Hz"),
 ];
 
 const definitionsById = new Map(

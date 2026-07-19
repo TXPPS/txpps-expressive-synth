@@ -53,9 +53,17 @@ export const useSynthStore = create<Store>((set) => ({
         if (import.meta.env.DEV) console.warn("Unknown param", id);
         return s;
       }
-      return { patch: { ...s.patch, [id]: value } };
+      // Gate 2: trigger ribbon mode is not live — coerce to continuous.
+      let next = value;
+      if (id === "ribbon.mode" && value === "trigger") next = "continuous";
+      return { patch: { ...s.patch, [id]: next } };
     }),
-  loadPatch: (values) => set(() => ({ patch: { ...defaultPatch(), ...values } })),
+  loadPatch: (values) =>
+    set(() => {
+      const merged = { ...defaultPatch(), ...values };
+      if (merged["ribbon.mode"] === "trigger") merged["ribbon.mode"] = "continuous";
+      return { patch: merged };
+    }),
 
   uiMode: "full",
   setUiMode: (m) => set({ uiMode: m }),
@@ -65,7 +73,7 @@ export const useSynthStore = create<Store>((set) => ({
   audioStatus: "idle",
   setAudioStatus: (s) => set({ audioStatus: s }),
 
-  currentPreset: { id: "factory:txe", name: "TX Electric", category: "KEYS", source: "factory" },
+  currentPreset: null,
   setCurrentPreset: (p) => set({ currentPreset: p }),
 
   pitchBend: 0,

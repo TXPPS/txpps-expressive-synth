@@ -106,7 +106,7 @@ export interface Tx80Patch {
   chorus: ChorusParams;
   delay: DelayParams;
   reverb: ReverbParams;
-  master: { volume: number; balance: number }; // balance -1 (I) .. +1 (II)
+  master: { volume: number; balance: number; tune: number }; // tune = A4 Hz
 }
 
 export const TX80_DEFAULT_ENV: Tx80Envelope = {
@@ -171,7 +171,7 @@ export const TX80_INIT_PATCH: Tx80Patch = {
     damping: 0.5,
     width: 0.9,
   },
-  master: { volume: 0.7, balance: 0 },
+  master: { volume: 0.7, balance: 0, tune: 440 },
 };
 
 // ── Normalization ───────────────────────────────────────────────────────────
@@ -290,6 +290,7 @@ export function normalizeTx80Patch(raw: unknown): Tx80Patch {
     master: {
       volume: clamp(num(master.volume, d.master.volume), 0, 1),
       balance: clamp(num(master.balance, d.master.balance), -1, 1),
+      tune: clamp(num(master.tune, d.master.tune), 415, 466),
     },
   };
 }

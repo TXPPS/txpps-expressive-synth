@@ -221,10 +221,7 @@ export const PARAM_MAP: Record<string, ParamMapping> = {
   "gliss.rate": travelDerived,
   "ribbon.mode": direct("ribbon.mode", mapRibbonMode),
   "ribbon.range": direct("ribbon.range", nearestChoice([2, 5, 7, 12, 24])),
-  "master.tune": unmapped(
-    "engine has no master tuning reference (fixed A=440)",
-    "Gate 6: add master tune to the engine or remove the control",
-  ),
+  "master.tune": direct("master.tune", (v) => clamp(num(v), 415, 466)),
   "master.level": direct("master.volume"),
   "master.polyphony": direct("voice.polyphony", nearestChoice([4, 8, 12, 16])),
 };

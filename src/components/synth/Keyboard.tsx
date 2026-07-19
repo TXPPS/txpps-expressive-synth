@@ -115,9 +115,12 @@ export function Keyboard({ onNoteOn, onNoteOff }: Props) {
 
   const whites = notes.filter((n) => !isBlack(n));
 
+  const sustainPedal = useSynthStore((s) => s.sustainPedal);
+  const setSustainPedal = useSynthStore((s) => s.setSustainPedal);
+
   return (
     <div className="flex items-stretch gap-2 min-w-0">
-      <div className="flex flex-col gap-1 shrink-0">
+      <div className="flex flex-col gap-1 shrink-0 w-14 sm:w-16">
         <button
           onClick={() => setOctave((o) => Math.min(8, o + 1))}
           className="panel-sunken silkscreen-strong px-2 py-1 rounded text-[0.6rem]"
@@ -135,6 +138,19 @@ export function Keyboard({ onNoteOn, onNoteOff }: Props) {
         <div className="panel-sunken silkscreen-strong px-2 py-1 rounded text-[0.6rem] text-[color:var(--phosphor)] text-center">
           C{octave}
         </div>
+        <button
+          type="button"
+          onClick={() => setSustainPedal(!sustainPedal)}
+          className={`mt-auto panel-sunken silkscreen-strong flex-1 min-h-[2.75rem] sm:min-h-[3.25rem] rounded-md text-[0.7rem] sm:text-xs tracking-wide border ${
+            sustainPedal
+              ? "text-[color:var(--phosphor)] border-[color:var(--phosphor)] shadow-[0_0_12px_-2px_var(--phosphor-dim)]"
+              : "text-[color:var(--silkscreen)] border-[color:var(--hairline-strong)]"
+          }`}
+          aria-pressed={sustainPedal}
+          aria-label="Sustain"
+        >
+          SUSTAIN
+        </button>
       </div>
       <div
         className="relative flex-1 min-w-0 h-28 sm:h-36 md:h-40 rounded-md overflow-hidden select-none touch-none bg-[color:var(--panel-sunken)]"

@@ -49,6 +49,12 @@ function needsResume(state: AudioContextState): boolean {
   return state !== "running" && (state as string) !== "closed";
 }
 
+/** Convert A4 reference Hz into detune cents relative to concert pitch. */
+function hzToCents(hz: number): number {
+  const safe = Math.max(415, Math.min(466, hz));
+  return 1200 * Math.log2(safe / 440);
+}
+
 /** Per-destination scaling of a normalized LFO depth (0..1). */
 const LFO_SCALE = {
   pitch: 100, // cents
@@ -262,6 +268,9 @@ export class TX80Engine {
     const ribbonSource = ctx.createConstantSource();
     ribbonSource.offset.value = 0;
     ribbonSource.start();
+    const masterTuneSource = ctx.createConstantSource();
+    masterTuneSource.offset.value = hzToCents(this.patch.master.tune);
+    masterTuneSource.start();
     const pitchModBus = ctx.createGain();
     pitchModBus.gain.value = 1;
     const cutoffModBus = ctx.createGain();
@@ -279,6 +288,7 @@ export class TX80Engine {
     this.shared = {
       pitchBendSource,
       ribbonSource,
+      masterTuneSource,
       pitchModBus,
       cutoffModBus,
       pwModBus,
@@ -433,6 +443,7 @@ export class TX80Engine {
     this.setDelay(this.patch.delay);
     this.setReverb(this.patch.reverb);
     this.setMasterVolume(this.patch.master.volume);
+    this.setMasterTune(this.patch.master.tune);
     this.refreshBalanceBases();
   }
 
@@ -587,6 +598,7 @@ export class TX80Engine {
     if (!flatEq(prev.reverb, patch.reverb)) this.setReverb(patch.reverb);
     if (prev.master.volume !== patch.master.volume) this.setMasterVolume(patch.master.volume);
     if (prev.master.balance !== patch.master.balance) this.refreshBalanceBases();
+    if (prev.master.tune !== patch.master.tune) this.setMasterTune(patch.master.tune);
     if (prev.voiceMode !== patch.voiceMode) this.releaseAllVoices();
     if (prev.ribbon.mode !== patch.ribbon.mode || prev.ribbon.range !== patch.ribbon.range) {
       this.recentreRibbon();
@@ -640,6 +652,15 @@ export class TX80Engine {
   private setMasterVolume(v: number): void {
     if (!this.ctx) return;
     this.masterGain.gain.setTargetAtTime(v, this.ctx.currentTime, 0.02);
+  }
+
+  private setMasterTune(hz: number): void {
+    if (!this.ctx || !this.shared) return;
+    this.shared.masterTuneSource.offset.setTargetAtTime(
+      hzToCents(hz),
+      this.ctx.currentTime,
+      0.02,
+    );
   }
 
   // ── Performance controls ───────────────────────────────────────────────
@@ -941,6 +962,7 @@ export class TX80Engine {
     if (this.shared) {
       stopSafe(this.shared.pitchBendSource);
       stopSafe(this.shared.ribbonSource);
+      stopSafe(this.shared.masterTuneSource);
       stopSafe(this.shared.pwConst[0]);
       stopSafe(this.shared.pwConst[1]);
       try {

@@ -1,6 +1,6 @@
 import { Panel } from "./Panel";
 import { useSynthStore } from "@/state/store";
-import { PARAM_BY_ID } from "@/state/params";
+import { LIVE_RIBBON_MODES, PARAM_BY_ID } from "@/state/params";
 
 const IDS = [
   "master.level",
@@ -13,6 +13,8 @@ const IDS = [
   "ribbon.mode",
   "ribbon.range",
 ];
+
+const LIVE_MODES = new Set<string>(LIVE_RIBBON_MODES);
 
 export function MasterPanel() {
   const patch = useSynthStore((s) => s.patch);
@@ -28,6 +30,7 @@ export function MasterPanel() {
               <span className="silkscreen truncate">{def.label}</span>
               {def.type === "bool" ? (
                 <button
+                  type="button"
                   onClick={() => setParam(id, !(v as boolean))}
                   className={`silkscreen rounded border px-2 py-0.5 text-[0.6rem] self-start ${
                     v
@@ -38,17 +41,30 @@ export function MasterPanel() {
                   {v ? "ON" : "OFF"}
                 </button>
               ) : def.type === "enum" ? (
-                <select
-                  value={v as string}
-                  onChange={(e) => setParam(id, e.target.value)}
-                  className="readout bg-transparent text-sm border border-[color:var(--hairline)] rounded px-1 py-0.5"
-                >
-                  {def.values!.map((val) => (
-                    <option key={val} value={val} className="bg-[color:var(--panel-raised)]">
-                      {val}
-                    </option>
-                  ))}
-                </select>
+                <>
+                  <select
+                    value={
+                      id === "ribbon.mode" && !LIVE_MODES.has(String(v))
+                        ? "continuous"
+                        : (v as string)
+                    }
+                    onChange={(e) => setParam(id, e.target.value)}
+                    className="readout bg-transparent text-sm border border-[color:var(--hairline)] rounded px-1 py-0.5"
+                  >
+                    {def.values!
+                      .filter((val) => (id === "ribbon.mode" ? LIVE_MODES.has(val) : true))
+                      .map((val) => (
+                        <option key={val} value={val} className="bg-[color:var(--panel-raised)]">
+                          {val}
+                        </option>
+                      ))}
+                  </select>
+                  {id === "ribbon.mode" && (
+                    <span className="silkscreen text-[0.5rem] text-[color:var(--silkscreen-dim)]">
+                      trigger mode disabled (pending)
+                    </span>
+                  )}
+                </>
               ) : (
                 <>
                   <input

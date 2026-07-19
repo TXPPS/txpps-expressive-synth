@@ -8,6 +8,8 @@ export interface Tx80SharedNodes {
   pitchBendSource: ConstantSourceNode;
   /** Ribbon offset in cents (ConstantSource). */
   ribbonSource: ConstantSourceNode;
+  /** Master tune offset in cents vs A=440 (ConstantSource). */
+  masterTuneSource: ConstantSourceNode;
   /** Summed pitch modulation in cents (LFOs + mod wheel vibrato). */
   pitchModBus: GainNode;
   /** Filter cutoff modulation in cents (LFO destination "filter"). */
@@ -171,6 +173,7 @@ export class Tx80SubVoice {
     for (const osc of [this.mainOsc, this.subOsc]) {
       shared.pitchBendSource.connect(osc.detune);
       shared.ribbonSource.connect(osc.detune);
+      shared.masterTuneSource.connect(osc.detune);
       shared.pitchModBus.connect(osc.detune);
     }
     this.applyPitch(note, travel, now);
@@ -319,6 +322,11 @@ export class Tx80SubVoice {
         }
         try {
           this.shared.ribbonSource.disconnect(osc.detune);
+        } catch {
+          /* already disconnected */
+        }
+        try {
+          this.shared.masterTuneSource.disconnect(osc.detune);
         } catch {
           /* already disconnected */
         }

@@ -98,6 +98,8 @@ interface Tx80Diag {
 export function useAudioEngine() {
   const patch = useSynthStore((s) => s.patch);
   const sustainPedal = useSynthStore((s) => s.sustainPedal);
+  const pitchBend = useSynthStore((s) => s.pitchBend);
+  const modWheel = useSynthStore((s) => s.modWheel);
   const panicToken = useSynthStore((s) => s.panicToken);
   const setAudioStatus = useSynthStore((s) => s.setAudioStatus);
 
@@ -111,6 +113,10 @@ export function useAudioEngine() {
   patchRef.current = patch;
   const sustainRef = useRef(sustainPedal);
   sustainRef.current = sustainPedal;
+  const pitchBendRef = useRef(pitchBend);
+  pitchBendRef.current = pitchBend;
+  const modWheelRef = useRef(modWheel);
+  modWheelRef.current = modWheel;
 
   // Mirror of live presses (midi → count) the hook has forwarded but not yet
   // released — used only for blur/visibility cleanup. Press identity itself
@@ -125,8 +131,11 @@ export function useAudioEngine() {
         // Params/sustain may have changed while (re)starting — reconcile the
         // engine with the CURRENT authoritative state before pending notes
         // flush (SynthRuntime publishes ready before flushing).
-        engineRef.current?.loadState(buildEnginePatch(patchRef.current));
-        engineRef.current?.setSustain(sustainRef.current);
+        const engine = engineRef.current;
+        engine?.loadState(buildEnginePatch(patchRef.current));
+        engine?.setSustain(sustainRef.current);
+        engine?.setPitchBend(pitchBendRef.current);
+        engine?.setModulation(modWheelRef.current);
       }
     },
     [setAudioStatus],
@@ -202,6 +211,23 @@ export function useAudioEngine() {
   useEffect(() => {
     engineRef.current?.setSustain(sustainPedal);
   }, [sustainPedal]);
+
+  // Pitch bend / mod wheel (performance transients → engine).
+  useEffect(() => {
+    engineRef.current?.setPitchBend(pitchBend);
+  }, [pitchBend]);
+
+  useEffect(() => {
+    engineRef.current?.setModulation(modWheel);
+  }, [modWheel]);
+
+  const handleRibbonPosition = useCallback((norm: number) => {
+    engineRef.current?.setRibbonPosition(norm);
+  }, []);
+
+  const handleRibbonRelease = useCallback(() => {
+    engineRef.current?.releaseRibbon();
+  }, []);
 
   // Panic: engine voices, pending notes, and the hook's press mirror.
   useEffect(() => {
@@ -301,5 +327,7 @@ export function useAudioEngine() {
     initialize,
     handleNoteOn,
     handleNoteOff,
+    handleRibbonPosition,
+    handleRibbonRelease,
   };
 }

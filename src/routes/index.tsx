@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect } from "react";
 import { Header } from "@/components/synth/Header";
 import { PresetBar } from "@/components/synth/PresetBar";
 import { LayerPanel } from "@/components/synth/LayerPanel";
@@ -18,24 +17,29 @@ export const Route = createFileRoute("/")({
 
 function TX80Panel() {
   const audioStatus = useSynthStore((s) => s.audioStatus);
-  const setAudioStatus = useSynthStore((s) => s.setAudioStatus);
-  const { initialize, handleNoteOn, handleNoteOff } = useAudioEngine();
-
-  // TEMP M1: mark the audio subsystem "idle → ready" via a click gesture on
-  // the enable-audio pill. Full AudioContext lifecycle lands in Milestone 2.
-  useEffect(() => {}, []);
+  const uiMode = useSynthStore((s) => s.uiMode);
+  const {
+    initialize,
+    handleNoteOn,
+    handleNoteOff,
+    handleRibbonPosition,
+    handleRibbonRelease,
+  } = useAudioEngine();
 
   const enableAudio = () => {
     if (audioStatus === "running") return;
     initialize();
   };
 
+  const showEditor = uiMode === "full" || uiMode === "edit";
+  const playFocused = uiMode === "play";
+  const editOnly = uiMode === "edit";
+
   return (
     <div className="min-h-screen enclosure flex flex-col safe-t">
       <Header />
       <PresetBar />
 
-      {/* Compact audio-enable pill (non-blocking; replaces a big modal) */}
       {audioStatus !== "running" && (
         <button
           onClick={enableAudio}
@@ -45,34 +49,49 @@ function TX80Panel() {
         </button>
       )}
 
-      {/* Main workspace — CSS grid drives responsive rearrangement */}
-      <main className="flex-1 grid gap-3 px-3 sm:px-4 pb-3 min-h-0"
-            style={{
-              gridTemplateAreas: "'layerI' 'layerII' 'mod' 'fx' 'master'",
-              gridTemplateColumns: "minmax(0,1fr)",
-            }}>
-        <div style={{ gridArea: "layerI" }}><LayerPanel scope="layerI" label="Layer I" /></div>
-        <div style={{ gridArea: "layerII" }}><LayerPanel scope="layerII" label="Layer II" /></div>
-        <div style={{ gridArea: "mod" }}><ModPanel /></div>
-        <div style={{ gridArea: "fx" }}><FxPanel /></div>
-        <div style={{ gridArea: "master" }}><MasterPanel /></div>
-      </main>
+      {showEditor && (
+        <main
+          className="flex-1 grid gap-3 px-3 sm:px-4 pb-3 min-h-0"
+          style={{
+            gridTemplateAreas: "'layerI' 'layerII' 'mod' 'fx' 'master'",
+            gridTemplateColumns: "minmax(0,1fr)",
+          }}
+        >
+          <div style={{ gridArea: "layerI" }}>
+            <LayerPanel scope="layerI" label="Layer I" />
+          </div>
+          <div style={{ gridArea: "layerII" }}>
+            <LayerPanel scope="layerII" label="Layer II" />
+          </div>
+          <div style={{ gridArea: "mod" }}>
+            <ModPanel />
+          </div>
+          <div style={{ gridArea: "fx" }}>
+            <FxPanel />
+          </div>
+          <div style={{ gridArea: "master" }}>
+            <MasterPanel />
+          </div>
+        </main>
+      )}
 
-      {/* Performance zone — always anchored above the keyboard */}
-      <section className="border-t border-[color:var(--hairline)] px-3 sm:px-4 py-2 bg-[color:var(--panel)] flex items-stretch gap-2 min-w-0">
-        <PerformanceStrip />
-        <div className="flex-1 min-w-0 flex flex-col gap-2">
-          <Ribbon />
-          <Keyboard onNoteOn={handleNoteOn} onNoteOff={handleNoteOff} />
-        </div>
-      </section>
+      <section
+        className={`border-t border-[color:var(--hairline)] px-3 sm:px-4 py-2 bg-[color:var(--panel)] flex items-stretch gap-3 min-w-0 ${
+          playFocused ? "flex-1" : editOnly ? "shrink-0" : ""
+        }`}
+      >
+          <PerformanceStrip />
+          <div className={`flex-1 min-w-0 flex flex-col gap-2 ${playFocused ? "justify-end" : ""}`}>
+            <Ribbon onPosition={handleRibbonPosition} onRelease={handleRibbonRelease} />
+            <Keyboard onNoteOn={handleNoteOn} onNoteOff={handleNoteOff} />
+          </div>
+        </section>
 
       <div className="silkscreen text-center py-1.5 border-t border-[color:var(--hairline)] safe-b">
-        TXPPS TX-80 · Milestone 2 · audio engine + voice manager
+        TXPPS TX-80 · Gate 2 ·{" "}
+        {uiMode === "play" ? "PLAY" : uiMode === "edit" ? "EDIT" : "FULL"}
       </div>
 
-      {/* Responsive rearrangement via inline media queries in a style tag.
-          Keeps a single source of layout truth co-located with the route. */}
       <style>{`
         @media (min-width: 640px) {
           main { grid-template-areas:

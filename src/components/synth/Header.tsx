@@ -26,7 +26,7 @@ export function Header() {
         <span className="text-lg font-bold tracking-widest text-[color:var(--foreground)] shrink-0">
           TX-80
         </span>
-        <span className="silkscreen hidden sm:inline shrink-0">v0.1.0 · M1</span>
+        <span className="silkscreen hidden sm:inline shrink-0">v0.2.0 · Gate 2</span>
       </div>
       <div className="flex items-center gap-1 sm:gap-1.5">
         {MODES.map((m) => (

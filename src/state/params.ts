@@ -145,6 +145,10 @@ const PERF_PARAMS: ParamDef[] = [
   { id: "master.polyphony", scope: "global", label: "Poly", type: "int", min: 4, max: 16, step: 1, default: 8, unit: "v", serialize: true },
 ];
 
+/** Live ribbon modes wired to the engine. `trigger` remains in the registry
+ *  for forward compatibility but is not selectable in the Gate 2 UI. */
+export const LIVE_RIBBON_MODES = ["continuous", "glissando", "hold"] as const;
+
 export const PARAM_REGISTRY: readonly ParamDef[] = Object.freeze([
   ...layerParams("layerI"),
   ...layerParams("layerII"),
