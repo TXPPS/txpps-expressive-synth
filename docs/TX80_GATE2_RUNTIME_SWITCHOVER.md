@@ -1,21 +1,30 @@
 # Gate 2 — Authoritative Runtime Switchover and Voice Ownership Repair
 
-Branch `feat/gate2-runtime-switchover` (from Gate 1 head `64a4c37`).
-Approved scope: replace the live audio path with the transplanted
-synth-core runtime behind the existing UI/state; no visual or state-
-architecture changes.
+**Status (2026-07-19):** Gate 1 + Gate 2 are **integrated into `main`**
+via fast-forward. `main` is the sole active development branch.
 
-## Follow-on (same branch) — interaction lock + diagnostics
+Historical evidence of this work remains on remote branch
+`feat/gate2-runtime-switchover` (do not develop there). Pre-promotion
+`main` is preserved at `archive/pre-gate2-main` (`ad15b8e`).
 
-After runtime switchover, Gate 2 UI completion and branding, this branch
-adds:
+Original delivery branch: `feat/gate2-runtime-switchover` (from Gate 1
+head `64a4c37`). Approved scope: replace the live audio path with the
+transplanted synth-core runtime behind the existing UI/state; no visual
+or state-architecture changes.
+
+## Follow-on (same historical branch) — interaction lock + diagnostics
+
+After runtime switchover, Gate 2 UI completion and branding, the Gate 2
+line added:
 
 - Instrument selection lock (CSS) with diagnostic-terminal exception
 - SETTINGS dialog + TXPPS diagnostic terminal
 - Control connection audit document
-- Public preview: https://txpps-tx-80.toppsmusicproductions.workers.dev/
+- Public preview (deployed from `main`):
+  https://txpps-tx-80.toppsmusicproductions.workers.dev/
 
-See `docs/TX80_DIAGNOSTIC_TERMINAL.md` and `docs/TX80_CONTROL_CONNECTION_AUDIT.md`.
+See `docs/TX80_DIAGNOSTIC_TERMINAL.md`, `docs/TX80_CONTROL_CONNECTION_AUDIT.md`,
+and `docs/TX80_NEXT_ROADMAP.md`.
 
 ## Old live path (retired at this gate)
 
@@ -121,9 +130,12 @@ gate report.
 
 ## Rollback
 
-`git checkout feat/gate1-synth-core-transplant` (or revert the Gate 2
-commit). Inside the branch, re-pointing `src/hooks/useAudioEngine.ts` to
-the quarantined `src/audio` engine restores the old path in one file.
+- Pre-Gate-1/2 product tip: `archive/pre-gate2-main` (or
+  `archive/m2-copilot-audio`) at `ad15b8e`.
+- Gate 1 tip only: `feat/gate1-synth-core-transplant`.
+- Inside a checkout, re-pointing `src/hooks/useAudioEngine.ts` to the
+  quarantined `src/audio` engine restores the old audio path in one file
+  (emergency only — not the supported product path).
 
 ## Remaining Gate 6 mapping decisions (unchanged from Gate 1)
 

@@ -1,6 +1,7 @@
 # TX-80 Diagnostic Terminal
 
-Local, in-memory runtime console for Gate 2 debugging.
+Local, in-memory runtime console shipped on **`main`** (Gate 2).
+Build info in the terminal should match the deployed `main` commit.
 
 ## Architecture
 

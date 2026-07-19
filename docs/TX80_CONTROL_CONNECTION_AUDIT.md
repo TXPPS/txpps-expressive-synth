@@ -1,6 +1,8 @@
 # TX-80 Control Connection Audit (Gate 2)
 
 Audit date: post selection-lock + diagnostics pass.
+Authority: this audit describes the product as shipped on **`main`**
+after Gate 1+2 consolidation.
 
 | Control | Status | Notes |
 |---------|--------|-------|
