@@ -164,7 +164,7 @@ master: ${snap.masterLevel}
 oldEngineLoaded: ${snap.oldEngineLoaded}`}
               </pre>
               <p className="silkscreen text-[0.55rem] text-[color:var(--silkscreen-dim)]">
-                Use TAP TO ENABLE AUDIO on the panel to start · PANIC clears voices
+                Use TAP TO START in the header to enable audio · PANIC clears voices
               </p>
             </SectionBox>
           )}
