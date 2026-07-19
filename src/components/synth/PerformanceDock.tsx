@@ -18,7 +18,7 @@ interface Props {
 /**
  * Coordinated performance dock.
  *
- * Portrait PLAY uses a deterministic CSS grid so Pitch | Mod | Oct/Sus | Keyboard
+ * Portrait PLAY/FULL uses a deterministic CSS grid so Pitch | Mod | Oct/Sus | Keyboard
  * share one lower-row height (TX27-style). Shared geometry CSS vars are set per tier.
  */
 export function PerformanceDock({
@@ -31,9 +31,6 @@ export function PerformanceDock({
   onRibbonRelease,
 }: Props) {
   const playFocused = variant === "play";
-  const playPortrait = playFocused && layout.isPhonePortrait;
-  const playLandscape =
-    playFocused && (layout.isPhoneLandscape || layout.isShortLandscape || layout.isTablet);
 
   const policy = geometryPolicy({
     isPhonePortrait: layout.isPhonePortrait,
@@ -46,6 +43,20 @@ export function PerformanceDock({
 
   const shellClass = playFocused ? "flex-1 min-h-0 flex flex-col" : "shrink-0";
   const geo = dockGeometryVars(layout, playFocused);
+
+  /**
+   * Coordinated side-column grid for PLAY and FULL.
+   * FULL previously used short wheels with `items-end`, which left a dead zone
+   * under the ribbon while OCT+ started at the top — the physical-phone gap.
+   * EDIT audition keeps a compact strip+keys row.
+   */
+  const useCoordinatedGrid = variant === "play" || variant === "full";
+
+  /** Grid keyboard must stretch with Pitch/Mod/OCT — force fill height in-row. */
+  const gridKeyHeight =
+    variant === "play"
+      ? policy.keyHeightClass
+      : "h-full min-h-[140px] sm:min-h-[160px]";
 
   /** Grid lower row: Pitch | Mod | Oct/Sus | Keyboard — identical stretch height */
   const lowerGrid = (
@@ -73,7 +84,7 @@ export function PerformanceDock({
         showSideControls={false}
         minKeyWidth={policy.minKeyWidth}
         useDesktopSteps={policy.useDesktopSteps}
-        heightClass={policy.keyHeightClass}
+        heightClass={gridKeyHeight}
         className="min-h-0 h-full self-stretch"
       />
     </div>
@@ -92,7 +103,7 @@ export function PerformanceDock({
         paddingRight: "max(env(safe-area-inset-right), 0.5rem)",
       }}
     >
-      {playPortrait || playLandscape || playFocused ? (
+      {useCoordinatedGrid ? (
         <div className="flex-1 min-h-0 flex flex-col gap-0 w-full">
           <div className="shrink-0" data-tx80-ribbon-slot="true">
             <Ribbon onPosition={onRibbonPosition} onRelease={onRibbonRelease} />

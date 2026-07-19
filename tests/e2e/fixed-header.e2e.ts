@@ -225,4 +225,29 @@ test.describe("fixed app header + portrait dock", () => {
     expect(Math.abs(pitch!.y - oct!.y)).toBeLessThan(3);
     await shot(page, "chromium-desktop-play");
   });
+
+  test("FULL mode portrait Pitch/Mod align with OCT+ under ribbon", async ({ page }) => {
+    await page.setViewportSize({ width: 430, height: 932 });
+    await hydrate(page);
+    await setMode(page, "full");
+    await noHorizontalOverflow(page);
+
+    // Scroll dock into view on FULL (page is tall)
+    await page.locator("[data-tx80-perf-dock='full']").scrollIntoViewIfNeeded();
+    await page.waitForTimeout(200);
+
+    const pitch = page.locator('[data-tx80-wheel="pitch"]').first();
+    const ribbon = page.getByRole("slider", { name: "Ribbon controller" });
+    const octPlus = page.getByRole("button", { name: "Octave up" });
+    await expect(page.locator("[data-tx80-dock-lower]")).toBeVisible();
+
+    const pb = await pitch.boundingBox();
+    const rb = await ribbon.boundingBox();
+    const ob = await octPlus.boundingBox();
+    expect(pb && rb && ob).toBeTruthy();
+    expect(pb!.y - (rb!.y + rb!.height)).toBeLessThanOrEqual(4);
+    expect(Math.abs(pb!.y - ob!.y)).toBeLessThan(3);
+    expect(pb!.height).toBeGreaterThanOrEqual(160);
+    await shot(page, "full-iphone-large-dock-aligned");
+  });
 });
