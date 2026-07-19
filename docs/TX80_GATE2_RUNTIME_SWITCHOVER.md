@@ -24,7 +24,7 @@ line added:
   https://txpps-tx-80.toppsmusicproductions.workers.dev/
 
 See `docs/TX80_DIAGNOSTIC_TERMINAL.md`, `docs/TX80_CONTROL_CONNECTION_AUDIT.md`,
-and `docs/TX80_NEXT_ROADMAP.md`.
+`docs/TX80_RESPONSIVE_MODE_SYSTEM.md`, and `docs/TX80_NEXT_ROADMAP.md`.
 
 ## Old live path (retired at this gate)
 

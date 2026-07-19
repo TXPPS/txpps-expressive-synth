@@ -6,100 +6,172 @@ import { LayerPanel } from "@/components/synth/LayerPanel";
 import { ModPanel } from "@/components/synth/ModPanel";
 import { FxPanel } from "@/components/synth/FxPanel";
 import { MasterPanel } from "@/components/synth/MasterPanel";
-import { PerformanceStrip } from "@/components/synth/PerformanceStrip";
-import { Ribbon } from "@/components/synth/Ribbon";
-import { Keyboard } from "@/components/synth/Keyboard";
-import { useSynthStore } from "@/state/store";
+import { PerformanceDock } from "@/components/synth/PerformanceDock";
+import { useSynthStore, type EditorSection } from "@/state/store";
 import { useAudioEngine } from "@/hooks/useAudioEngine";
 import { installDiagnosticCapture, patchRuntimeDiag } from "@/lib/diagnostics/runtime";
+import { useViewportLayout } from "@/hooks/useViewportLayout";
 
 export const Route = createFileRoute("/")({
   component: TX80Panel,
 });
 
+const SECTIONS: { id: EditorSection; label: string }[] = [
+  { id: "layerI", label: "LAYER I" },
+  { id: "layerII", label: "LAYER II" },
+  { id: "mod", label: "MOD" },
+  { id: "fx", label: "FX" },
+  { id: "master", label: "MASTER" },
+];
+
 function TX80Panel() {
-  const audioStatus = useSynthStore((s) => s.audioStatus);
   const uiMode = useSynthStore((s) => s.uiMode);
+  const activeLayerTab = useSynthStore((s) => s.activeLayerTab);
+  const setActiveLayerTab = useSynthStore((s) => s.setActiveLayerTab);
+  const editKeysVisible = useSynthStore((s) => s.editKeysVisible);
+  const setEditKeysVisible = useSynthStore((s) => s.setEditKeysVisible);
+  const layout = useViewportLayout();
   const { initialize, handleNoteOn, handleNoteOff, handleRibbonPosition, handleRibbonRelease } =
     useAudioEngine();
 
   useEffect(() => {
     installDiagnosticCapture();
+    document.documentElement.dataset.tx80Hydrated = "true";
+    return () => {
+      delete document.documentElement.dataset.tx80Hydrated;
+    };
   }, []);
 
   useEffect(() => {
-    patchRuntimeDiag({ uiMode });
-  }, [uiMode]);
-
-  const enableAudio = () => {
-    if (audioStatus === "running") return;
-    initialize();
-  };
+    patchRuntimeDiag({
+      uiMode,
+      viewport: `${layout.width}x${layout.height}`,
+      orientation: layout.isPortrait ? "portrait" : "landscape",
+    });
+  }, [uiMode, layout]);
 
   const showEditor = uiMode === "full" || uiMode === "edit";
+  const showPerfDock = uiMode === "full" || uiMode === "play" || (uiMode === "edit" && editKeysVisible);
   const playFocused = uiMode === "play";
-  const editOnly = uiMode === "edit";
+  const useSectionNav = showEditor && (layout.isPhonePortrait || (layout.isNarrow && uiMode === "edit"));
+
+  const dockVariant = playFocused ? "play" : uiMode === "edit" ? "audition" : "full";
 
   return (
-    <div className="min-h-screen enclosure flex flex-col safe-t">
-      <Header />
+    <div
+      className={`enclosure flex flex-col overflow-x-hidden ${
+        playFocused ? "h-[100dvh] max-h-[100dvh]" : "min-h-[100dvh]"
+      }`}
+      data-tx80-shell={uiMode}
+      data-tx80-tier={layout.tier}
+    >
+      <Header onAudioStart={initialize} />
       <PresetBar />
 
-      {audioStatus !== "running" && (
-        <button
-          onClick={enableAudio}
-          className="mx-3 sm:mx-4 mb-2 panel-sunken silkscreen-strong text-[color:var(--amber)] border border-[color:var(--amber-dim)] px-3 py-1.5 rounded self-start text-[0.65rem] sm:text-xs"
-        >
-          ▶ TAP TO ENABLE AUDIO —{" "}
-          {audioStatus === "starting" ? "starting…" : "browser autoplay policy"}
-        </button>
-      )}
-
       {showEditor && (
-        <main
-          className="flex-1 grid gap-3 px-3 sm:px-4 pb-3 min-h-0"
-          style={{
-            gridTemplateAreas: "'layerI' 'layerII' 'mod' 'fx' 'master'",
-            gridTemplateColumns: "minmax(0,1fr)",
-          }}
-        >
-          <div style={{ gridArea: "layerI" }}>
-            <LayerPanel scope="layerI" label="Layer I" />
-          </div>
-          <div style={{ gridArea: "layerII" }}>
-            <LayerPanel scope="layerII" label="Layer II" />
-          </div>
-          <div style={{ gridArea: "mod" }}>
-            <ModPanel />
-          </div>
-          <div style={{ gridArea: "fx" }}>
-            <FxPanel />
-          </div>
-          <div style={{ gridArea: "master" }}>
-            <MasterPanel />
-          </div>
-        </main>
+        <>
+          {useSectionNav && (
+            <nav
+              className="flex gap-1 px-2 sm:px-4 pb-2 overflow-x-auto shrink-0"
+              aria-label="Editor sections"
+              data-tx80-section-nav="true"
+            >
+              {SECTIONS.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setActiveLayerTab(s.id)}
+                  className={`silkscreen-strong shrink-0 rounded-md border px-2 py-2 text-[0.55rem] min-h-11 ${
+                    activeLayerTab === s.id
+                      ? "border-[color:var(--phosphor)] text-[color:var(--phosphor)]"
+                      : "border-[color:var(--hairline)] text-[color:var(--silkscreen-dim)]"
+                  }`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </nav>
+          )}
+
+          <main
+            className={`flex-1 grid gap-2 sm:gap-3 px-2 sm:px-4 pb-2 min-h-0 min-w-0 ${
+              playFocused ? "hidden" : ""
+            } ${useSectionNav ? "tx80-editor-nav" : "tx80-editor-grid"}`}
+            data-tx80-editor="true"
+          >
+            {(!useSectionNav || activeLayerTab === "layerI") && (
+              <div style={{ gridArea: useSectionNav ? undefined : "layerI" }} data-tx80-section="layerI">
+                <LayerPanel scope="layerI" label="Layer I" />
+              </div>
+            )}
+            {(!useSectionNav || activeLayerTab === "layerII") && (
+              <div style={{ gridArea: useSectionNav ? undefined : "layerII" }} data-tx80-section="layerII">
+                <LayerPanel scope="layerII" label="Layer II" />
+              </div>
+            )}
+            {(!useSectionNav || activeLayerTab === "mod") && (
+              <div style={{ gridArea: useSectionNav ? undefined : "mod" }} data-tx80-section="mod">
+                <ModPanel />
+              </div>
+            )}
+            {(!useSectionNav || activeLayerTab === "fx") && (
+              <div style={{ gridArea: useSectionNav ? undefined : "fx" }} data-tx80-section="fx">
+                <FxPanel />
+              </div>
+            )}
+            {(!useSectionNav || activeLayerTab === "master") && (
+              <div style={{ gridArea: useSectionNav ? undefined : "master" }} data-tx80-section="master">
+                <MasterPanel />
+              </div>
+            )}
+          </main>
+
+          {uiMode === "edit" && (
+            <div className="px-2 sm:px-4 pb-2 shrink-0">
+              <button
+                type="button"
+                data-tx80-edit-keys-toggle="true"
+                onClick={() => setEditKeysVisible(!editKeysVisible)}
+                className="silkscreen-strong w-full sm:w-auto rounded-md border border-[color:var(--hairline)] px-3 py-2 text-[0.65rem] min-h-11"
+                aria-pressed={editKeysVisible}
+              >
+                {editKeysVisible ? "HIDE KEYS" : "SHOW KEYS"}
+              </button>
+            </div>
+          )}
+        </>
       )}
 
-      <section
-        className={`border-t border-[color:var(--hairline)] px-3 sm:px-4 py-2 bg-[color:var(--panel)] flex items-stretch gap-3 min-w-0 ${
-          playFocused ? "flex-1" : editOnly ? "shrink-0" : ""
-        }`}
-      >
-        <PerformanceStrip />
-        <div className={`flex-1 min-w-0 flex flex-col gap-2 ${playFocused ? "justify-end" : ""}`}>
-          <Ribbon onPosition={handleRibbonPosition} onRelease={handleRibbonRelease} />
-          <Keyboard onNoteOn={handleNoteOn} onNoteOff={handleNoteOff} />
-        </div>
-      </section>
+      {showPerfDock && (
+        <PerformanceDock
+          uiMode={uiMode}
+          layout={layout}
+          variant={dockVariant}
+          onNoteOn={handleNoteOn}
+          onNoteOff={handleNoteOff}
+          onRibbonPosition={handleRibbonPosition}
+          onRibbonRelease={handleRibbonRelease}
+        />
+      )}
 
-      <div className="silkscreen text-center py-1.5 border-t border-[color:var(--hairline)] safe-b">
-        TXPPS TX-80 · Gate 2 · {uiMode === "play" ? "PLAY" : uiMode === "edit" ? "EDIT" : "FULL"}
-      </div>
+      {!playFocused && (
+        <div className="silkscreen text-center py-1 border-t border-[color:var(--hairline)] safe-b shrink-0">
+          TXPPS TX-80 · {uiMode === "edit" ? "EDIT" : "FULL"} · {layout.tier}
+        </div>
+      )}
 
       <style>{`
+        .tx80-editor-grid {
+          grid-template-areas: 'layerI' 'layerII' 'mod' 'fx' 'master';
+          grid-template-columns: minmax(0,1fr);
+        }
+        .tx80-editor-nav {
+          grid-template-columns: minmax(0,1fr);
+          grid-template-areas: none;
+        }
         @media (min-width: 640px) {
-          main { grid-template-areas:
+          .tx80-editor-grid {
+            grid-template-areas:
               'layerI layerII'
               'mod fx'
               'master master' !important;
@@ -107,7 +179,8 @@ function TX80Panel() {
           }
         }
         @media (min-width: 1024px) {
-          main { grid-template-areas:
+          .tx80-editor-grid {
+            grid-template-areas:
               'layerI layerII mod'
               'layerI layerII fx'
               'master master master' !important;
@@ -115,15 +188,19 @@ function TX80Panel() {
           }
         }
         @media (min-width: 1400px) {
-          main { grid-template-areas:
+          .tx80-editor-grid {
+            grid-template-areas:
               'layerI layerII mod fx'
               'master master master master' !important;
             grid-template-columns: 1.1fr 1.1fr 0.9fr 0.9fr !important;
           }
         }
-        /* Phone landscape: performance-first — compress panels, keep keyboard tall */
-        @media (max-height: 500px) and (orientation: landscape) {
-          main { display: none; }
+        /* Phone landscape: keep FULL editor available only when not height-starved play */
+        @media (max-height: 420px) and (orientation: landscape) {
+          [data-tx80-shell="full"] .tx80-editor-grid {
+            max-height: 38dvh;
+            overflow-y: auto;
+          }
         }
       `}</style>
     </div>

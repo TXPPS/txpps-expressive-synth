@@ -1,8 +1,10 @@
 import { create } from "zustand";
 import { PARAM_BY_ID, defaultPatch, type PatchValues } from "./params";
+import { loadPersistedUiMode, persistUiMode } from "@/lib/uiModePersistence";
 
 export type UiMode = "full" | "edit" | "play";
 export type AudioStatus = "idle" | "starting" | "running" | "suspended" | "failed";
+export type EditorSection = "layerI" | "layerII" | "mod" | "fx" | "master";
 
 export interface PresetMeta {
   id: string;
@@ -20,29 +22,38 @@ interface Store {
   // UI
   uiMode: UiMode;
   setUiMode: (m: UiMode) => void;
-  activeLayerTab: "layerI" | "layerII" | "mod" | "fx" | "master";
-  setActiveLayerTab: (t: Store["activeLayerTab"]) => void;
+  activeLayerTab: EditorSection;
+  setActiveLayerTab: (t: EditorSection) => void;
+  /** EDIT mode: collapsible audition keyboard (does not reset patch/audio). */
+  editKeysVisible: boolean;
+  setEditKeysVisible: (v: boolean) => void;
 
-  // Audio lifecycle (real wiring in Milestone 2)
+  // Audio lifecycle
   audioStatus: AudioStatus;
   setAudioStatus: (s: AudioStatus) => void;
 
   // Preset
   currentPreset: PresetMeta | null;
   setCurrentPreset: (p: PresetMeta | null) => void;
+  presetBrowserOpen: boolean;
+  setPresetBrowserOpen: (v: boolean) => void;
 
   // Perf transient
   pitchBend: number; // -1..1
   modWheel: number; // 0..1
   sustainPedal: boolean;
+  keyboardOctave: number;
   setPitchBend: (v: number) => void;
   setModWheel: (v: number) => void;
   setSustainPedal: (v: boolean) => void;
+  setKeyboardOctave: (v: number) => void;
 
   // Panic
   panicToken: number;
   panic: () => void;
 }
+
+const initialUiMode = (typeof window !== "undefined" && loadPersistedUiMode()) || "full";
 
 export const useSynthStore = create<Store>((set) => ({
   patch: defaultPatch(),
@@ -65,23 +76,32 @@ export const useSynthStore = create<Store>((set) => ({
       return { patch: merged };
     }),
 
-  uiMode: "full",
-  setUiMode: (m) => set({ uiMode: m }),
+  uiMode: initialUiMode,
+  setUiMode: (m) => {
+    persistUiMode(m);
+    set({ uiMode: m });
+  },
   activeLayerTab: "layerI",
   setActiveLayerTab: (t) => set({ activeLayerTab: t }),
+  editKeysVisible: false,
+  setEditKeysVisible: (v) => set({ editKeysVisible: v }),
 
   audioStatus: "idle",
   setAudioStatus: (s) => set({ audioStatus: s }),
 
   currentPreset: null,
   setCurrentPreset: (p) => set({ currentPreset: p }),
+  presetBrowserOpen: false,
+  setPresetBrowserOpen: (v) => set({ presetBrowserOpen: v }),
 
   pitchBend: 0,
   modWheel: 0,
   sustainPedal: false,
+  keyboardOctave: 4,
   setPitchBend: (v) => set({ pitchBend: Math.max(-1, Math.min(1, v)) }),
   setModWheel: (v) => set({ modWheel: Math.max(0, Math.min(1, v)) }),
   setSustainPedal: (v) => set({ sustainPedal: v }),
+  setKeyboardOctave: (v) => set({ keyboardOctave: Math.max(0, Math.min(8, Math.round(v))) }),
 
   panicToken: 0,
   panic: () => set((s) => ({ panicToken: s.panicToken + 1, sustainPedal: false })),

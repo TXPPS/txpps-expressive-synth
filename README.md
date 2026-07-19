@@ -45,10 +45,15 @@ npx playwright test tests/e2e/gate2-runtime.e2e.ts
 
 ## Status
 
-See `CURRENT_STATUS.md` and `docs/TX80_NEXT_ROADMAP.md`.
+See `CURRENT_STATUS.md`, `docs/TX80_NEXT_ROADMAP.md`, and
+`docs/TX80_RESPONSIVE_MODE_SYSTEM.md`.
 
 Live audio path: Zustand → `src/synth-core/mapping.ts` → product engine →
 one `AudioContext`. Legacy `src/audio/` is quarantined (not live).
+
+Modes: **FULL** (workstation), **EDIT** (panels + optional audition keys),
+**PLAY** (performance-first). Phone layouts use a coordinated performance dock
+and a TX27-style preset browser overlay.
 
 ## Package manager
 
